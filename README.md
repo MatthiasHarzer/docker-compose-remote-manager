@@ -47,7 +47,7 @@ It should be in the following format:
 {
     // These are variable keys that can be used to restrict access to certain services
     "access-keys": {
-        "generale": "1234567890",
+        "general": "1234567890",
         ...
     },
     // The services that should be accassible via the API
@@ -57,7 +57,7 @@ It should be in the following format:
             // The path to the directory where the docker-compose.yml file is located
             "cwd": "/path/to/dir",
             // The access key that is required to access this service. If not specified, no access key is required
-            "access-key": "$generale"
+            "access-key": "$general"
             // <- This is a variable name
         },
         "another-service": {
