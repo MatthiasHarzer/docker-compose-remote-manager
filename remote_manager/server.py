@@ -6,7 +6,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 
 from remote_manager.compose_executor import ComposeExecutor
-from remote_manager.config import Config, Service
+from remote_manager.config import Config
 from remote_manager.process_stdout_reader import ProcessStdoutReader
 from remote_manager.ws_connection_manager import WsConnectionManager
 
@@ -14,8 +14,11 @@ CONFIG_FILE = os.getcwd() + "/config.json"
 
 app = FastAPI()
 ws_connection_manager = WsConnectionManager()
+asyncio_loop = asyncio.get_event_loop()
 log_process_reader: dict[str, ProcessStdoutReader] = {}
-loop = asyncio.get_event_loop()
+
+if not os.path.exists(CONFIG_FILE):
+    raise FileNotFoundError(f"Config file {CONFIG_FILE} not found")
 
 with open(CONFIG_FILE, "r") as f:
     cnt = json.load(f)
@@ -37,9 +40,36 @@ def _get_log_process_reader(executor: ComposeExecutor) -> ProcessStdoutReader:
     return log_process_reader[service.name]
 
 
+def _authenticate(service_name: str, access_key: str) -> (bool, str | None):
+    """
+    Authenticate the access key.
+    :param service_name: The service name
+    :param access_key: The access key
+    :return:
+    """
+    service = config.services.get(service_name)
+    if not service:
+        return False, f"Service {service_name} not found"
+    if service.access_key != access_key:
+        return False, f"Access key is not authorized to modify {service_name}"
+    return True, None
+
+
 @app.get("/status/{service_name}")
-async def get_service_status(service_name: str):
-    return {"message": f"Status of {service_name}"}
+async def get_service_status(service_name: str, access_key: str = None):
+    """
+    Get the status of the docker compose service defined by the service_name in the config file.
+    :param service_name: The service name
+    :param access_key: The access key
+    """
+    service = config.services.get(service_name)
+    authorized, message = _authenticate(service_name, access_key)
+    if not authorized:
+        return {"message": message}
+
+    compose_executor = ComposeExecutor(service)
+
+    return compose_executor.status()
 
 
 @app.post("/start/{service_name}")
@@ -51,10 +81,10 @@ async def start_service(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    if not service:
-        return {"message": f"Service {service_name} not found"}
-    if service.access_key != access_key:
-        return {"message": f"Access key {access_key} is not authorized to start {service_name}"}
+
+    authorized, message = _authenticate(service_name, access_key)
+    if not authorized:
+        return {"message": message}
 
     composes_executor = ComposeExecutor(service)
     composes_executor.start()
@@ -71,10 +101,9 @@ async def stop_service(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    if not service:
-        return {"message": f"Service {service_name} not found"}
-    if service.access_key != access_key:
-        return {"message": f"Access key {access_key} is not authorized to stop {service_name}"}
+    authorized, message = _authenticate(service_name, access_key)
+    if not authorized:
+        return {"message": message}
 
     compose_executor = ComposeExecutor(service)
     compose_executor.stop()
@@ -91,10 +120,9 @@ async def get_logs(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    if not service:
-        return {"message": f"Service {service_name} not found"}
-    if service.access_key != access_key:
-        return {"message": f"Access key {access_key} is not authorized to get logs of {service_name}"}
+    authorized, message = _authenticate(service_name, access_key)
+    if not authorized:
+        return {"message": message}
 
     compose_executor = ComposeExecutor(service)
     lines = compose_executor.get_logs()
@@ -130,7 +158,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
     reader = _get_log_process_reader(compose_executor)
 
     def _send_line(line: str):
-        loop.create_task(ws_connection_manager.send_personal_message(line, websocket))
+        asyncio_loop.create_task(ws_connection_manager.send_personal_message(line, websocket))
 
     unregister = reader.on_read_line(_send_line, 100)
 

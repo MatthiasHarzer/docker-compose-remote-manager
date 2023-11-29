@@ -32,6 +32,14 @@ class ComposeExecutor:
         """
         subprocess.run(self._build_cmd("down"))
 
+    def status(self) -> bool:
+        """
+        Get the status of the service.
+        :return:
+        """
+        return subprocess.run(self._build_cmd("ps", "--services", "--filter", "status=running"),
+                              stdout=subprocess.PIPE).stdout.decode().strip() != ""
+
     def get_logs(self) -> list[str]:
         """
         Get the logs of the service.
