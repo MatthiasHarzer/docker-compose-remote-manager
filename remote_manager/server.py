@@ -3,6 +3,7 @@ import json
 import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from remote_manager.compose_executor import ComposeExecutor
@@ -16,6 +17,18 @@ app = FastAPI()
 ws_connection_manager = WsConnectionManager()
 asyncio_loop = asyncio.get_event_loop()
 log_process_reader: dict[str, ProcessStdoutReader] = {}
+
+origins = [
+    "*"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if not os.path.exists(CONFIG_FILE):
     raise FileNotFoundError(f"Config file {CONFIG_FILE} not found")
