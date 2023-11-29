@@ -7,11 +7,24 @@ This is a very simple API to manage Docker compose applications via HTTP request
 ### Installation
 
 - Copy the [`docker-compose.yml`](./docker-compose.yml) file into your local directory.
-- Create a `config.json` file in the same directory as the `docker-compose.yml` file. See the [config.json](#the-configjson-file) section for more information.
+- Create a `config.json` file in the same directory as the `docker-compose.yml` file. See the [config.json](#configuring-the-api) section for more information.
 - Run `docker compose up -d --build` to start the container.
-- The server should now run on `0.0.0.0:9998` (you can change the port in the `docker-compose.yml` file)
+- The server should now run on `0.0.0.0:9090` (you can change the port in the `docker-compose.yml` file)
 
-### The config.json file
+### Usage
+The API provides the following endpoints:
+
+- `/status/{service}` -
+returns `true` if the service is running, `false` otherwise 
+- `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
+- `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
+- `/logs/{service}` - returns the logs of the service (`docker compose logs`)
+
+- `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated
+
+The `{service}` parameter is the name of the service as defined in the `config.json` file.
+
+### Configuring the API
 
 The `config.json` file contains the configuration for the docker compose applications and the access keys to access
 those applications.

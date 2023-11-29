@@ -130,7 +130,7 @@ async def get_logs(service_name: str, access_key: str = None):
     return PlainTextResponse("\n".join(lines))
 
 
-@app.websocket("/ws/{service_name}")
+@app.websocket("/ws/logs/{service_name}")
 async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key: str = None):
     """
     Get the logs of the docker compose service defined by the service_name in the config file. Writes existing and new
