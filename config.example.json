@@ -10,6 +10,6 @@
         }
     },
     "access-keys": {
-        "$secrete": "my_secrete_key"
+        "secrete": "my_secrete_key"
     }
 }
