@@ -8,6 +8,7 @@ This is a very simple API to manage Docker compose applications via HTTP request
 
 - Copy the [`docker-compose.yml`](./docker-compose.yml) file into your local directory.
 - Create a `config.json` file in the same directory as the `docker-compose.yml` file. See the [config.json](#configuring-the-api) section for more information.
+- Update the path to the `config.json` file in the `docker-compose.yml` file to match your local path.
 - Run `docker compose up -d --build` to start the container.
 - The server should now run on `0.0.0.0:9090` (you can change the port in the `docker-compose.yml` file)
 
