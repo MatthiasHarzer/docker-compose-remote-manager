@@ -17,7 +17,7 @@ The `config.json` file contains the configuration for the docker compose applica
 those applications.
 It should be in the following format:
 
-```json
+```js
 {
     // These are variable keys that can be used to restrict access to certain services
     "access-keys": {
