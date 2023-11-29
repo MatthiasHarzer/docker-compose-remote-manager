@@ -25,6 +25,10 @@ returns `true` if the service is running, `false` otherwise
 
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
+
+To access services that require an access key, append the query parameter `access-key` to the request. For example: 
+`/logs/<service>?access_key=1234567890`
+
 ### Configuring the API
 
 The `config.json` file contains the configuration for the docker compose applications and the access keys to access
