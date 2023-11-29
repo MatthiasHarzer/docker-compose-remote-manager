@@ -15,13 +15,13 @@ This is a very simple API to manage Docker compose applications via HTTP request
 ### Usage
 The API provides the following endpoints:
 
-- `/status/{service}` -
+- `GET` `/status/{service}` -
 returns `true` if the service is running, `false` otherwise 
-- `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
-- `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
-- `/logs/{service}` - returns the logs of the service (`docker compose logs`)
+- `POST` `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
+- `POST` `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
+- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`)
 
-- `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated
+- `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated
 
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
