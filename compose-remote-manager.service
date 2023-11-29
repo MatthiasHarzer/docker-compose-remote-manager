@@ -1,0 +1,11 @@
+[Unit]
+Description = The docker compose remote manager API uvicorn service
+After = network.target
+
+[Service]
+User = root
+WorkingDirectory = <path/to/local/api>
+ExecStart = <path/to/local/api>/start.sh
+
+[Install]
+WantedBy=multi-user.target

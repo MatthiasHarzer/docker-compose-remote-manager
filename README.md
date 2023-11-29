@@ -6,11 +6,19 @@ This is a very simple API to manage Docker compose applications via HTTP request
 
 ### Installation
 
-- Copy the [`docker-compose.yml`](./docker-compose.yml) file into your local directory.
-- Create a `config.json` file in the same directory as the `docker-compose.yml` file. See the [config.json](#configuring-the-api) section for more information.
-- Update the path to the `config.json` file in the `docker-compose.yml` file to match your local path.
-- Run `docker compose up -d --build` to start the container.
-- The server should now run on `0.0.0.0:9090` (you can change the port in the `docker-compose.yml` file)
+- Clone the repository
+- Create a virtual environment using `python -m venv venv` (python 3.11+ is recommended)
+- Activate the virtual environment using `source venv/bin/activate`
+- Install the dependencies using `pip install -r requirements.txt`
+- Create a `config.json` file in the projects root directory. See the [config.json](#configuring-the-api) section for more information.
+- Run the API using the `start.sh` script
+  - It may be required to make the script executable using `chmod +x start.sh`
+- The API should now run on port `9090`
+
+To set up a system-wide service, you can use the `compose-remote-manager.service`-unit-file-template.
+
+#### Note 
+It's sadly not possible to dockerize this application, because it needs direct access to the host system to run the docker compose commands.
 
 ### Usage
 The API provides the following endpoints:
