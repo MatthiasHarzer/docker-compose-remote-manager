@@ -68,10 +68,26 @@ def _authenticate(service_name: str, access_key: str) -> (bool, str | None):
     return True, None
 
 
+@app.get("/services")
+async def get_services(access_key: str = None):
+    """
+    Get the services available services, accessible with the given access key.
+    :param access_key: The access key
+    :return:
+    """
+
+    allowed_services = []
+    for service_name, service in config.services.items():
+        if service.allows(access_key):
+            allowed_services.append(service_name)
+
+    return allowed_services
+
+
 @app.get("/status/{service_name}")
 async def get_service_status(service_name: str, access_key: str = None):
     """
-    Get the status of the docker compose service defined by the service_name in the config file.
+    Get the status of the docker compose service
     :param service_name: The service name
     :param access_key: The access key
     """
@@ -88,7 +104,7 @@ async def get_service_status(service_name: str, access_key: str = None):
 @app.post("/start/{service_name}")
 async def start_service(service_name: str, access_key: str = None):
     """
-    Starts the docker compose service defined by the service_name in the config file.
+    Starts the docker compose service
     :param service_name: The service name
     :param access_key: The access key
     :return:
@@ -108,7 +124,7 @@ async def start_service(service_name: str, access_key: str = None):
 @app.post("/stop/{service_name}")
 async def stop_service(service_name: str, access_key: str = None):
     """
-    Stops the docker compose service defined by the service_name in the config file.
+    Stops the docker compose service
     :param service_name: The service name
     :param access_key: The access key
     :return:
@@ -127,7 +143,7 @@ async def stop_service(service_name: str, access_key: str = None):
 @app.get("/logs/{service_name}")
 async def get_logs(service_name: str, access_key: str = None):
     """
-    Get the logs of the docker compose service defined by the service_name in the config file.
+    Get the logs of the docker compose service
     :param service_name: The service name
     :param access_key: The access key
     :return:
@@ -146,8 +162,7 @@ async def get_logs(service_name: str, access_key: str = None):
 @app.websocket("/ws/logs/{service_name}")
 async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key: str = None):
     """
-    Get the logs of the docker compose service defined by the service_name in the config file. Writes existing and new
-    logs to the websocket.
+    Get the logs of the docker compose service. Writes existing and new logs to the websocket.
     :param websocket:
     :param service_name:
     :param access_key:
