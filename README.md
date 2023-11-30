@@ -50,12 +50,12 @@ It should be in the following format:
     "access-keys": {
         "general": "1234567890",
         "restricted": {
-            "value": "super_sectr3t",
+            "value": "read_only",
               
             // The scopes that are allowed to be used with this access key
             "scopes":  [
-                "start",
-                "stop",
+                "logs",
+                "status",
             ]     
         }
         ...

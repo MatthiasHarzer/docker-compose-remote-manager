@@ -8,7 +8,7 @@ class AccessKeyScope(StrEnum):
     """
     The scope of an access key.
     """
-    START_STOP = "start-stop"
+    MANAGE = "manage"
     LOGS = "logs"
     STATUS = "status"
 
@@ -18,7 +18,7 @@ def _all_scopes() -> list[AccessKeyScope]:
     Get all access key scopes.
     :return:
     """
-    return [AccessKeyScope.START_STOP, AccessKeyScope.LOGS, AccessKeyScope.STATUS]
+    return [AccessKeyScope.MANAGE, AccessKeyScope.LOGS, AccessKeyScope.STATUS]
 
 
 @dataclass
@@ -36,7 +36,7 @@ class AccessKey:
         :param scope:
         :return:
         """
-        return scope in self.scopes
+        return scope in self.scopes or AccessKeyScope.MANAGE in self.scopes
 
     @staticmethod
     def from_json(name: str, json: dict | str) -> AccessKey:
