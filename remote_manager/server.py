@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
@@ -97,7 +97,7 @@ async def get_service_status(service_name: str, access_key: str = None):
     service = config.services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STATUS)
     if not authorized:
-        return {"message": message}
+        raise HTTPException(status_code=401, detail=message)
 
     compose_executor = ComposeExecutor(service)
 
@@ -116,7 +116,7 @@ async def start_service(service_name: str, access_key: str = None):
 
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.START)
     if not authorized:
-        return {"message": message}
+        raise HTTPException(status_code=401, detail=message)
 
     composes_executor = ComposeExecutor(service)
     composes_executor.start()
@@ -135,7 +135,7 @@ async def stop_service(service_name: str, access_key: str = None):
     service = config.services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STOP)
     if not authorized:
-        return {"message": message}
+        raise HTTPException(status_code=401, detail=message)
 
     compose_executor = ComposeExecutor(service)
     compose_executor.stop()
@@ -154,7 +154,7 @@ async def get_logs(service_name: str, access_key: str = None):
     service = config.services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.LOGS)
     if not authorized:
-        return {"message": message}
+        raise HTTPException(status_code=401, detail=message)
 
     compose_executor = ComposeExecutor(service)
     lines = compose_executor.get_logs()
