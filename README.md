@@ -49,6 +49,15 @@ It should be in the following format:
     // These are variable keys that can be used to restrict access to certain services
     "access-keys": {
         "general": "1234567890",
+        "restricted": {
+            "value": "super_sectr3t",
+              
+            // The scopes that are allowed to be used with this access key
+            "scopes":  [
+                "start",
+                "stop",
+            ]     
+        }
         ...
     },
     // The services that should be accassible via the API
