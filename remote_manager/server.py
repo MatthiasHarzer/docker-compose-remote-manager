@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from remote_manager.compose_executor import ComposeExecutor
-from remote_manager.config import Config
+from remote_manager.config import Config, AccessKeyScope
 from remote_manager.process_stdout_reader import ProcessStdoutReader
 from remote_manager.ws_connection_manager import WsConnectionManager
 
@@ -53,7 +53,7 @@ def _get_log_process_reader(executor: ComposeExecutor) -> ProcessStdoutReader:
     return log_process_reader[service.name]
 
 
-def _authenticate(service_name: str, access_key: str) -> (bool, str | None):
+def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> (bool, str | None):
     """
     Authenticate the access key.
     :param service_name: The service name
@@ -63,8 +63,8 @@ def _authenticate(service_name: str, access_key: str) -> (bool, str | None):
     service = config.services.get(service_name)
     if not service:
         return False, f"Service {service_name} not found"
-    if not service.allows(access_key):
-        return False, f"Key is not authorized to access {service_name}"
+    if not service.allows(access_key, scope):
+        return False, f"Key is not authorized access scope `{scope}` of {service_name}"
     return True, None
 
 
@@ -79,9 +79,12 @@ async def get_services(access_key: str = None):
     allowed_services = []
     for service_name, service in config.services.items():
         if service.allows(access_key):
-            allowed_services.append(service_name)
+            allowed_services.append(service.name)
 
-    return allowed_services
+    return {
+        "services": allowed_services,
+        "scopes": config.get_key_scopes(access_key)
+    }
 
 
 @app.get("/status/{service_name}")
@@ -92,7 +95,7 @@ async def get_service_status(service_name: str, access_key: str = None):
     :param access_key: The access key
     """
     service = config.services.get(service_name)
-    authorized, message = _authenticate(service_name, access_key)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STATUS)
     if not authorized:
         return {"message": message}
 
@@ -111,7 +114,7 @@ async def start_service(service_name: str, access_key: str = None):
     """
     service = config.services.get(service_name)
 
-    authorized, message = _authenticate(service_name, access_key)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.START)
     if not authorized:
         return {"message": message}
 
@@ -130,7 +133,7 @@ async def stop_service(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    authorized, message = _authenticate(service_name, access_key)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STOP)
     if not authorized:
         return {"message": message}
 
@@ -149,7 +152,7 @@ async def get_logs(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    authorized, message = _authenticate(service_name, access_key)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.LOGS)
     if not authorized:
         return {"message": message}
 
@@ -176,7 +179,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
         ws_connection_manager.disconnect(websocket)
         return
 
-    if not service.allows(access_key):
+    if not service.allows(access_key, AccessKeyScope.LOGS):
         await ws_connection_manager.send_personal_message(
             f"Access key {access_key} is not authorized to get logs of {service_name}", websocket)
         ws_connection_manager.disconnect(websocket)
