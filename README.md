@@ -23,6 +23,7 @@ It's sadly not possible to dockerize this application, because it needs direct a
 ### Usage
 The API provides the following endpoints:
 
+- `GET` `/services` - returns a list of all services that are accessible with a given access key
 - `GET` `/status/{service}` -
 returns `true` if the service is running, `false` otherwise 
 - `POST` `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
