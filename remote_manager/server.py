@@ -63,8 +63,8 @@ def _authenticate(service_name: str, access_key: str) -> (bool, str | None):
     service = config.services.get(service_name)
     if not service:
         return False, f"Service {service_name} not found"
-    if service.access_key != access_key:
-        return False, f"Access key is not authorized to modify {service_name}"
+    if not service.allows(access_key):
+        return False, f"Key is not authorized to access {service_name}"
     return True, None
 
 
@@ -161,7 +161,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
         ws_connection_manager.disconnect(websocket)
         return
 
-    if service.access_key != access_key:
+    if not service.allows(access_key):
         await ws_connection_manager.send_personal_message(
             f"Access key {access_key} is not authorized to get logs of {service_name}", websocket)
         ws_connection_manager.disconnect(websocket)

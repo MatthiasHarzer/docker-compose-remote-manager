@@ -30,16 +30,32 @@ class Service:
     name: str
     cwd: str
     compose_file: str = "docker-compose.yml"
-    access_key: str = None
+    access_keys: list[str] | None = None
+
+    def allows(self, access_key: str) -> bool:
+        """
+        Check if the service allows the given access key.
+        :param access_key:
+        :return:
+        """
+        if not self.access_keys:
+            return True
+        return access_key in self.access_keys
 
     @staticmethod
     def from_json(name: str, json: dict, available_access_keys: dict[str, str] = None) -> Service:
         available_access_keys = available_access_keys or {}
         cwd = json.get("cwd")
         compose_file = json.get("compose-file", "docker-compose.yml")
-        access_key = _resolve_access_key(json.get("access-key"), available_access_keys)
+        keys: list[str] | str | None = json.get("access-key")
+        if keys and not isinstance(keys, list):
+            keys = [keys]
 
-        return Service(name, cwd, compose_file, access_key)
+        access_keys = None
+        if keys:
+            access_keys = [_resolve_access_key(key, available_access_keys) for key in keys]
+
+        return Service(name, cwd, compose_file, access_keys)
 
 
 @dataclass
