@@ -45,11 +45,13 @@ class ComposeExecutor:
         Get the logs of the service.
         :return:
         """
-        return subprocess.run(self._build_cmd("logs"), stdout=subprocess.PIPE).stdout.decode().split("\n")
+        return subprocess.run(self._build_cmd("logs", "--tail=500"), stdout=subprocess.PIPE).stdout.decode().split(
+            "\n")
 
     def get_log_process(self) -> subprocess.Popen:
         """
         Get the process that reads the logs.
         :return:
         """
-        return subprocess.Popen(self._build_cmd("logs", "-f"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return subprocess.Popen(self._build_cmd("logs", "-f", "--tail=500"), stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
