@@ -135,10 +135,11 @@ class Config:
         :param key:
         :return:
         """
-        k = self.access_keys.get(key)
-        if not k:
-            return []
-        return k.scopes
+
+        for k in self.access_keys.values():
+            if k.value == key:
+                return k.scopes
+        return _all_scopes()
 
     @staticmethod
     def from_json(json: dict) -> Config:
