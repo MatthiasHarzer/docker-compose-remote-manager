@@ -66,6 +66,15 @@ It should be in the following format:
             // The name of the docker-compose file (default: docker-compose.yml)
             "compose-file": "docker-compose.prod.yml"
         },
+        "third-service": {
+            "cwd": "/path/to/dir",
+              
+            // It's also possible to use a list of access keys (logical OR)
+            "access-key": [
+                "$general",
+                "abc"
+            ]
+        }
         ...
     }
 }
