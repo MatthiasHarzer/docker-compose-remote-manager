@@ -8,8 +8,7 @@ class AccessKeyScope(StrEnum):
     """
     The scope of an access key.
     """
-    START = "start"
-    STOP = "stop"
+    START_STOP = "start-stop"
     LOGS = "logs"
     STATUS = "status"
 
@@ -19,7 +18,7 @@ def _all_scopes() -> list[AccessKeyScope]:
     Get all access key scopes.
     :return:
     """
-    return [AccessKeyScope.START, AccessKeyScope.STOP, AccessKeyScope.LOGS, AccessKeyScope.STATUS]
+    return [AccessKeyScope.START_STOP, AccessKeyScope.LOGS, AccessKeyScope.STATUS]
 
 
 @dataclass

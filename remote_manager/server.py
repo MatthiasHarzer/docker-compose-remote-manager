@@ -114,7 +114,7 @@ async def start_service(service_name: str, access_key: str = None):
     """
     service = config.services.get(service_name)
 
-    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.START)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.START_STOP)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
@@ -133,7 +133,7 @@ async def stop_service(service_name: str, access_key: str = None):
     :return:
     """
     service = config.services.get(service_name)
-    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STOP)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.START_STOP)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
