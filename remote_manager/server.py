@@ -64,7 +64,7 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     if not service:
         return False, f"Service {service_name} not found"
     if not service.allows(access_key, scope):
-        return False, f"Key is not authorized access scope `{scope}` of {service_name}"
+        return False, f"Key is not authorized access scope {scope} of {service_name}"
     return True, None
 
 
@@ -79,12 +79,12 @@ async def get_services(access_key: str = None):
     allowed_services = []
     for service_name, service in config.services.items():
         if service.allows(access_key):
-            allowed_services.append(service.name)
+            allowed_services.append({
+                "name": service_name,
+                "scopes": service.get_access_key_allowed_scopes(access_key)
+            })
 
-    return {
-        "services": allowed_services,
-        "scopes": config.get_key_scopes(access_key)
-    }
+    return allowed_services
 
 
 @app.get("/status/{service_name}")

@@ -26,7 +26,6 @@ class AccessKey:
     """
     An access key that can restrict access to services.
     """
-    name: str
     value: str
     scopes: list[AccessKeyScope] = field(default_factory=_all_scopes)
 
@@ -39,18 +38,20 @@ class AccessKey:
         return scope in self.scopes or AccessKeyScope.MANAGE in self.scopes
 
     @staticmethod
-    def from_json(name: str, json: dict | str) -> AccessKey:
+    def from_json(json: dict | str, available_keys: dict[str, str]) -> AccessKey:
         if isinstance(json, str):
-            return AccessKey(name, json)
+            key = _resolve_access_key_or_var(json, available_keys)
+            return AccessKey(key)
 
-        else:
-            scopes = json.get("scopes", _all_scopes())
-            if not isinstance(scopes, list):
-                scopes = [scopes]
-            return AccessKey(name, json.get("value"), scopes)
+        scopes = json.get("scopes", _all_scopes())
+        if not isinstance(scopes, list):
+            scopes = [scopes]
+
+        key = _resolve_access_key_or_var(json.get("key"), available_keys)
+        return AccessKey(key, scopes)
 
 
-def _resolve_access_key(access_key: str, available_access_keys: dict[str, AccessKey]) -> AccessKey:
+def _resolve_access_key_or_var(access_key: str, available_access_keys: dict[str, str]) -> str:
     """
     Resolve an access key to its value.
     :param access_key:
@@ -58,9 +59,9 @@ def _resolve_access_key(access_key: str, available_access_keys: dict[str, Access
     :return:
     """
     if not access_key.startswith("$"):
-        return AccessKey(access_key, access_key)
+        return access_key
     elif access_key.startswith("$$"):
-        return AccessKey(access_key[1:], access_key[1:], [])
+        return access_key[1:]
 
     key = access_key[1:]
 
@@ -105,6 +106,23 @@ class Service:
 
         return False
 
+    def get_access_key_allowed_scopes(self, access_key: str) -> list[AccessKeyScope]:
+        """
+        Get the scopes allowed by the access key.
+        :param access_key:
+        :return:
+        """
+        if not self.access_keys:
+            return _all_scopes()
+
+        for key in self.access_keys:
+            if key.value != access_key:
+                continue
+
+            return key.scopes
+
+        return []
+
     @staticmethod
     def from_json(name: str, json: dict, available_access_keys: dict[str, AccessKey] = None) -> Service:
         available_access_keys = available_access_keys or {}
@@ -116,7 +134,7 @@ class Service:
 
         access_keys = None
         if keys:
-            access_keys = [_resolve_access_key(key, available_access_keys) for key in keys]
+            access_keys = [AccessKey.from_json(k, available_access_keys) for k in keys]
 
         return Service(name, cwd, compose_file, access_keys)
 
@@ -126,25 +144,13 @@ class Config:
     """
     The configuration of the remote manager.
     """
-    access_keys: dict[str, AccessKey]
+    access_keys: dict[str, str]
     services: dict[str, Service]
-
-    def get_key_scopes(self, key: str) -> list[AccessKeyScope]:
-        """
-        Get the scopes of the given access key.
-        :param key:
-        :return:
-        """
-
-        for k in self.access_keys.values():
-            if k.value == key:
-                return k.scopes
-        return _all_scopes()
 
     @staticmethod
     def from_json(json: dict) -> Config:
-        json_access_keys = json.get("access-keys", {})
-        access_keys = {k: AccessKey.from_json(k, v) for k, v in json_access_keys.items()}
+        access_keys = json.get("access-keys", {})
+        # access_keys = {k: AccessKey.from_json(k, v) for k, v in json_access_keys.items()}
 
         services = {k: Service.from_json(k, v, access_keys) for k, v in json.get("services", {}).items()}
 
