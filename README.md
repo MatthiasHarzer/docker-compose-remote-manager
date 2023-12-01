@@ -48,16 +48,7 @@ It should be in the following format:
 {
     // These are variable keys that can be used to restrict access to certain services
     "access-keys": {
-        "general": "1234567890",
-        "restricted": {
-            "value": "read_only",
-              
-            // The scopes that are allowed to be used with this access key
-            "scopes":  [
-                "logs",
-                "status",
-            ]     
-        }
+        "general": "1234567890"
         ...
     },
     // The services that should be accassible via the API
@@ -81,8 +72,16 @@ It should be in the following format:
               
             // It's also possible to use a list of access keys (logical OR)
             "access-key": [
-                "$general",
-                "abc"
+                "abc",
+
+                // It's also possible to restrict an access key to certain scopes
+                {
+                    "key": "$general",
+                    "scope": [
+                        "logs",
+                        "status"
+                    ] 
+                }
             ]
         }
         ...
