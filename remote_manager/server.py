@@ -1,10 +1,10 @@
 import asyncio
 import json
 import os
+import re
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
 
 from remote_manager.compose_executor import ComposeExecutor
 from remote_manager.config import Config, AccessKeyScope
@@ -66,6 +66,39 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     if not service.allows(access_key, scope):
         return False, f"Key is not authorized access scope {scope} of {service_name}"
     return True, None
+
+
+def _parse_log_line(line: str) -> tuple[str, str, str] | None:
+    """
+    Extracts the timestamp
+    :param line:
+    :return: The name, timestamp and log message
+    """
+    log_regex = r"([^\|]+)\|( (\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}).(\d+)Z)? (.+)"
+    match = re.findall(log_regex, line)
+
+    if not match:
+        return None
+
+    name, full_timestamp, year, month, day, hour, minute, second, fraction, log = match[0]
+
+    log_no_ts = log.replace(full_timestamp, "", 1).strip()
+
+    return name, full_timestamp, log_no_ts
+
+
+def _parse_log_lines(lines: list[str]) -> list[tuple[str, str, str]]:
+    """
+    Extracts the name, timestamp and log message from the log lines.
+    :param lines:
+    :return: The name, timestamp and log message
+    """
+    logs = []
+    for line in lines:
+        log = _parse_log_line(line)
+        if log:
+            logs.append(log)
+    return logs
 
 
 @app.get("/services")
@@ -159,7 +192,7 @@ async def get_logs(service_name: str, access_key: str = None):
     compose_executor = ComposeExecutor(service)
     lines = compose_executor.get_logs()
 
-    return PlainTextResponse("\n".join(lines))
+    return _parse_log_lines(lines)
 
 
 @app.websocket("/ws/logs/{service_name}")
@@ -189,7 +222,8 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
     reader = _get_log_process_reader(compose_executor)
 
     def _send_line(line: str):
-        asyncio_loop.create_task(ws_connection_manager.send_personal_message(line, websocket))
+        parsed = _parse_log_line(line)
+        asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(parsed), websocket))
 
     unregister = reader.on_read_line(_send_line, 100)
 

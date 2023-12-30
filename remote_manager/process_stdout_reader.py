@@ -13,6 +13,17 @@ class ProcessStdoutReader:
     """
 
     def __init__(self, process: subprocess.Popen):
+        """
+        Initialize the ProcessStdoutReader instance.
+
+        This method starts a new thread that reads the stdout of the given process line by line.
+        It also initializes the lists for storing the lines read from stdout and the observer callbacks.
+        The process is not closed after initialization.
+
+        Args:
+            process (subprocess.Popen): The process whose stdout is to be read.
+
+        """
         self.process = process
         self._thread = start_new_thread(self._read_stdout, ())
         self._lines: list[str] = []
