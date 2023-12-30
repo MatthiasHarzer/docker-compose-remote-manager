@@ -84,7 +84,7 @@ def _parse_log_line(line: str) -> tuple[str, str, str] | None:
 
     name, full_timestamp, year, month, day, hour, minute, second, fraction, log = match[0]
 
-    log_no_ts = log.replace(full_timestamp, "", 1).strip()
+    log_no_ts = log.replace(full_timestamp, "", 1)
 
     if name and full_timestamp and log_no_ts:
         return name, full_timestamp, log_no_ts
