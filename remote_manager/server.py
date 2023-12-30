@@ -30,6 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+logs_cache: dict[str, list[tuple[str, str, str]]] = {}
+
 if not os.path.exists(CONFIG_FILE):
     raise FileNotFoundError(f"Config file {CONFIG_FILE} not found")
 
@@ -84,7 +86,10 @@ def _parse_log_line(line: str) -> tuple[str, str, str] | None:
 
     log_no_ts = log.replace(full_timestamp, "", 1).strip()
 
-    return name, full_timestamp, log_no_ts
+    if name and full_timestamp and log_no_ts:
+        return name, full_timestamp, log_no_ts
+
+    return None
 
 
 def _parse_log_lines(lines: list[str]) -> list[tuple[str, str, str]]:
@@ -190,9 +195,15 @@ async def get_logs(service_name: str, access_key: str = None):
         raise HTTPException(status_code=401, detail=message)
 
     compose_executor = ComposeExecutor(service)
+
+    if not compose_executor.status() and service_name in logs_cache:
+        return logs_cache[service_name]
+
     lines = compose_executor.get_logs()
 
-    return _parse_log_lines(lines)
+    logs_cache[service_name] = _parse_log_lines(lines)
+
+    return logs_cache[service_name]
 
 
 @app.websocket("/ws/logs/{service_name}")
@@ -223,6 +234,18 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
 
     def _send_line(line: str):
         parsed = _parse_log_line(line)
+
+        if not parsed:
+            return
+
+        if service_name not in logs_cache:
+            logs_cache[service_name] = []
+
+        logs_cache[service_name].append(parsed)
+
+        if len(logs_cache[service_name]) > 250:
+            logs_cache[service_name].pop(0)
+
         asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(parsed), websocket))
 
     unregister = reader.on_read_line(_send_line, 100)
