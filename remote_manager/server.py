@@ -30,7 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logs_cache: dict[str, set[tuple[str, str, str]]] = {}
+logs_cache: dict[str, list[tuple[str, str, str]]] = {}
 
 if not os.path.exists(CONFIG_FILE):
     raise FileNotFoundError(f"Config file {CONFIG_FILE} not found")
@@ -92,7 +92,7 @@ def _parse_log_line(line: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _parse_log_lines(lines: list[str]) -> set[tuple[str, str, str]]:
+def _parse_log_lines(lines: list[str]) -> list[tuple[str, str, str]]:
     """
     Extracts the name, timestamp and log message from the log lines.
     :param lines:
@@ -103,7 +103,7 @@ def _parse_log_lines(lines: list[str]) -> set[tuple[str, str, str]]:
         log = _parse_log_line(line)
         if log:
             logs.append(log)
-    return set(logs)
+    return logs
 
 
 @app.get("/services")
@@ -197,13 +197,13 @@ async def get_logs(service_name: str, access_key: str = None):
     compose_executor = ComposeExecutor(service)
 
     if not compose_executor.status() and service_name in logs_cache:
-        return logs_cache[service_name]
+        return sorted(set(logs_cache[service_name]), key=lambda x: x[1])
 
     lines = compose_executor.get_logs()
 
-    logs_cache[service_name] = set(sorted(_parse_log_lines(lines), key=lambda x: x[1]))
+    logs_cache[service_name] = _parse_log_lines(lines)
 
-    return logs_cache[service_name]
+    return sorted(set(logs_cache[service_name]), key=lambda x: x[1])
 
 
 @app.websocket("/ws/logs/{service_name}")
@@ -239,14 +239,12 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
             return
 
         if service_name not in logs_cache:
-            logs_cache[service_name] = set()
+            logs_cache[service_name] = []
 
-        logs_cache[service_name].add(parsed)
+        logs_cache[service_name].append(parsed)
 
         if len(logs_cache[service_name]) > 250:
             logs_cache[service_name] = logs_cache[service_name][-250:]
-
-        logs_cache[service_name] = set(sorted(logs_cache[service_name], key=lambda x: x[1]))
 
         asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(parsed), websocket))
 
