@@ -201,7 +201,8 @@ async def get_logs(service_name: str, access_key: str = None):
 
     lines = compose_executor.get_logs()
 
-    logs_cache[service_name] = _parse_log_lines(lines)
+    # noinspection PyTypeChecker
+    logs_cache[service_name] = sorted(_parse_log_lines(lines), key=lambda x: x[1])
 
     return logs_cache[service_name]
 
@@ -245,6 +246,9 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
 
         if len(logs_cache[service_name]) > 250:
             logs_cache[service_name] = logs_cache[service_name][-250:]
+
+        # noinspection PyTypeChecker
+        logs_cache[service_name] = sorted(logs_cache[service_name], key=lambda x: x[1])
 
         asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(parsed), websocket))
 
