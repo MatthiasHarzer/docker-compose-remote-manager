@@ -28,9 +28,9 @@ The API provides the following endpoints:
 returns `true` if the service is running, `false` otherwise 
 - `POST` `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
 - `POST` `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
-- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`)
-
-- `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated
+- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml
+ file.
+- `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated. Does not include old logs.
 
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
