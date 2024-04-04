@@ -4,7 +4,7 @@ This is a very simple API to manage Docker compose applications via HTTP request
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-### Installation
+## Installation
 
 - Clone the repository
 - Create a virtual environment using `python -m venv venv` (python 3.11+ is recommended)
@@ -20,7 +20,7 @@ To set up a system-wide service, you can use the `compose-remote-manager.service
 #### Note 
 It's sadly not possible to dockerize this application, because it needs direct access to the host system to run the docker compose commands.
 
-### Usage
+## Usage
 The API provides the following endpoints:
 
 - `GET` `/services` - returns a list of all services that are accessible with a given access key
@@ -35,10 +35,10 @@ returns `true` if the service is running, `false` otherwise
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
 
-To access services that require an access key, append the query parameter `access-key` to the request. For example: 
+To access services that require an access key, append the query parameter `access_key` to the request. For example: 
 `/logs/<service>?access_key=1234567890`
 
-### Configuring the API
+## Configuring the API
 
 The `config.json` file contains the configuration for the docker compose applications and the access keys to access
 those applications.
@@ -95,5 +95,8 @@ sign. For example: `$$generale`.
 
 An example `config.json` file can be found [here](./config.example.json).
 
-### Note on Docker compose services
+## Note on Docker compose services
 Currently, it's not possible to start / stop / monitor single services defined in the `docker-comopse.yml` file. Only all services at once can be controlled.
+
+## See Also
+The [`docker-compose-remove-manager-web-app`](https://github.com/MatthiasHarzer/docker-compose-remote-manager-web-app) build on top of this server docker compose services via a simple web GUI.
