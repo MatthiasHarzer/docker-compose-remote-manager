@@ -2,12 +2,14 @@ import subprocess
 from _thread import start_new_thread
 from typing import Callable
 
-OnReadLineCallback = Callable[[str], None]
+from remote_manager.util import parse_compose_log_line, ParsedComposeLogLine
+
+OnReadLineCallback = Callable[[ParsedComposeLogLine], None]
 OnCloseCallback = Callable[[], None]
 UnregisterCallback = Callable[[], None]
 
 
-class ProcessStdoutReader:
+class ComposeProcessStdoutReader:
     """
     A threaded stdout reader for a process that notifies observers when a new line is read.
     """
@@ -26,7 +28,7 @@ class ProcessStdoutReader:
         """
         self.process = process
         self._thread = start_new_thread(self._read_stdout, ())
-        self._lines: list[str] = []
+        self._lines: list[ParsedComposeLogLine] = []
         self._observers: list[OnReadLineCallback] = []
         self._on_close: list[OnCloseCallback] = []
         self._closed = False
@@ -63,7 +65,15 @@ class ProcessStdoutReader:
                 callback()
         self._closed = True
 
-    def _notify_observers(self, line: str) -> None:
+    def add_system_log_line(self, line: ParsedComposeLogLine) -> None:
+        """
+        Add a system log line to the list of lines read.
+        :param line: The line to add
+        """
+        self._lines.append(line)
+        self._notify_observers(line)
+
+    def _notify_observers(self, line: ParsedComposeLogLine) -> None:
         for observer in self._observers:
             observer(line)
 
@@ -73,7 +83,8 @@ class ProcessStdoutReader:
             if not line and self.process.poll() is not None:
                 break
             line = line.decode("utf-8").strip()
-            self._lines.append(line)
-            self._notify_observers(line)
+            parsed_line = parse_compose_log_line(line)
+            self._lines.append(parsed_line)
+            self._notify_observers(parsed_line)
 
         self.stop()
