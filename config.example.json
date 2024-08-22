@@ -1,15 +1,15 @@
 {
     "services": {
-        "my-secrete-app": {
-            "cwd": "/home/username/my-secrete-app",
-            "compose-file": "not-docker-compose.yml",
-            "access-key": "$secrete"
+        "my-secret-app": {
+            "cwd": "/home/username/my-secret-app",
+            "compose-file": "docker-compose-prod.yml",
+            "access-key": "$secret"
         },
-        "my-generale-compose-app": {
-            "cwd": "/home/username/my-generale-compose-app"
+        "my-public-compose-app": {
+            "cwd": "/home/username/my-public-compose-app"
         }
     },
     "access-keys": {
-        "secrete": "my_secrete_key"
+        "secret": "my_secret_key"
     }
 }
