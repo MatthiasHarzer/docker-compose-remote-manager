@@ -28,7 +28,7 @@ The API provides the following endpoints:
 returns `true` if the service is running, `false` otherwise 
 - `POST` `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
 - `POST` `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
-- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml
+- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml`
  file.
 - `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated. Does not include old logs.
 
@@ -58,8 +58,7 @@ It should be in the following format:
             // The path to the directory where the docker-compose.yml file is located
             "cwd": "/path/to/dir",
             // The access key that is required to access this service. If not specified, no access key is required
-            "access-key": "$general"
-            // <- This is a variable name
+            "access-key": "$general" // <- This is a variable name
         },
         "another-service": {
             "cwd": "/path/to/dir",
@@ -73,16 +72,20 @@ It should be in the following format:
             // It's also possible to use a list of access keys (logical OR)
             "access-key": [
                 "abc",
-
-                // It's also possible to restrict an access key to certain scopes
-                {
-                    "key": "$general",
-                    "scope": [
-                        "logs",
-                        "status"
-                    ] 
-                }
+                "def",
             ]
+        },
+        "forth-service": {
+          "cwd": "/path/to/dir",
+
+          // It's also possible to restrict an access key to certain scopes
+          "access-key": {
+            "key": "$general",  // Specify the key
+            "scope": [          // Restrict to specific scopes
+                "logs",
+                "status"
+            ] 
+          }
         }
         ...
     }
@@ -91,7 +94,7 @@ It should be in the following format:
 
 For the `access-key` field you can either use a string or a variable name (prefixed with a `$` sign) that is defined in
 the `access-keys` field. To use an access key, that starts with a `$` sign, you have to escape it with a another `$`
-sign. For example: `$$generale`.
+sign. For example: `$$general` would require `...?access_key=$general`.
 
 An example `config.json` file can be found [here](./config.example.json).
 
@@ -99,4 +102,4 @@ An example `config.json` file can be found [here](./config.example.json).
 Currently, it's not possible to start / stop / monitor single services defined in the `docker-comopse.yml` file. Only all services at once can be controlled.
 
 ## See Also
-The [`docker-compose-remove-manager-web-app`](https://github.com/MatthiasHarzer/docker-compose-remote-manager-web-app) build on top of this server docker compose services via a simple web GUI.
+The [`docker-compose-remote-manager-web-app`](https://github.com/MatthiasHarzer/docker-compose-remote-manager-web-app) build on top of this server docker compose services via a simple web GUI.
