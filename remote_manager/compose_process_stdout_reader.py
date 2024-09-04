@@ -2,7 +2,7 @@ import subprocess
 from _thread import start_new_thread
 from typing import Callable
 
-from remote_manager.util import parse_compose_log_line, ParsedComposeLogLine
+from remote_manager.parsing import parse_compose_log_line, ParsedComposeLogLine
 
 OnReadLineCallback = Callable[[ParsedComposeLogLine], None]
 OnCloseCallback = Callable[[], None]

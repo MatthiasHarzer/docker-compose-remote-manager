@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import re
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -10,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from remote_manager.compose_executor import ComposeExecutor
 from remote_manager.config import Config, AccessKeyScope
 from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
-from remote_manager.util import parse_compose_log_lines, parse_compose_log_line, ParsedComposeLogLine
+from remote_manager.parsing import parse_compose_log_lines, ParsedComposeLogLine
 from remote_manager.ws_connection_manager import WsConnectionManager
 
 CONFIG_FILE = os.getcwd() + "/config.json"
@@ -68,7 +67,7 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     if not service:
         return False, f"Service {service_name} not found"
     if not service.allows(access_key, scope):
-        return False, f"Key is not authorized access scope {scope} of {service_name}"
+        return False, f"Key is not authorized to access scope {scope} of {service_name}"
     return True, None
 
 
@@ -232,7 +231,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
 
         asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(line), websocket))
 
-    unregister = reader.on_read_line(_send_line, 100)
+    unregister = reader.on_read_line(_send_line, 0)
 
     while True:
         try:

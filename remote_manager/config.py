@@ -150,7 +150,6 @@ class Config:
     @staticmethod
     def from_json(json: dict) -> Config:
         access_keys = json.get("access-keys", {})
-        # access_keys = {k: AccessKey.from_json(k, v) for k, v in json_access_keys.items()}
 
         services = {k: Service.from_json(k, v, access_keys) for k, v in json.get("services", {}).items()}
 
