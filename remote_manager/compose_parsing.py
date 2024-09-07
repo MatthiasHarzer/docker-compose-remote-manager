@@ -15,12 +15,12 @@ def parse_compose_log_line(line: str) -> ParsedComposeLogLine | None:
     if not match:
         return None
 
-    name, full_timestamp, year, month, day, hour, minute, second, fraction, log = match[0]
+    name, full_timestamp, year, month, day, hour, minute, second, fraction, log = match[0]  # type: str
 
     log_no_ts = log.replace(full_timestamp, "", 1)
 
     if name and full_timestamp and log_no_ts:
-        return name, full_timestamp, log_no_ts
+        return name.strip(), full_timestamp, log_no_ts.strip()
 
     return None
 
@@ -37,3 +37,4 @@ def parse_compose_log_lines(lines: list[str]) -> list[ParsedComposeLogLine]:
         if log:
             logs.append(log)
     return logs
+

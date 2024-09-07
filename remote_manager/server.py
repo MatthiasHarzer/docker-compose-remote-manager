@@ -6,10 +6,11 @@ from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from remote_manager.compose_executor import ComposeExecutor
-from remote_manager.config import Config, AccessKeyScope
+from remote_manager.compose_cli import ComposeCli
 from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
-from remote_manager.parsing import parse_compose_log_lines, ParsedComposeLogLine
+from remote_manager.compose_parsing import parse_compose_log_lines, ParsedComposeLogLine
+from remote_manager.compose_service import AccessKeyScope
+from remote_manager.config_parsing import parse_config
 from remote_manager.ws_connection_manager import WsConnectionManager
 
 CONFIG_FILE = os.getcwd() + "/config.json"
@@ -38,14 +39,15 @@ if not os.path.exists(CONFIG_FILE):
 
 with open(CONFIG_FILE, "r") as f:
     cnt = json.load(f)
-    config = Config.from_json(cnt)
+    services = parse_config(cnt)
 
 
-def _get_log_process_reader(executor: ComposeExecutor) -> ComposeProcessStdoutReader:
+def _get_log_process_reader(executor: ComposeCli) -> ComposeProcessStdoutReader:
     service = executor.service
 
     def _on_close():
         # Remove dead process readers
+        print(f"Removing log process reader for {service.name}")
         log_process_reader.pop(service.name)
 
     if service.name not in log_process_reader:
@@ -63,7 +65,7 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     :param access_key: The access key
     :return:
     """
-    service = config.services.get(service_name)
+    service = services.get(service_name)
     if not service:
         return False, f"Service {service_name} not found"
     if not service.allows(access_key, scope):
@@ -74,7 +76,7 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
 def _add_system_log_line(service_name: str, line: str) -> None:
     now = datetime.now()
     parsed = ("system", now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), f"{line}")
-    compose_executor = ComposeExecutor(config.services.get(service_name))
+    compose_executor = ComposeCli(services.get(service_name))
     line_reader = _get_log_process_reader(compose_executor)
     line_reader.add_system_log_line(parsed)
 
@@ -89,7 +91,7 @@ async def get_services(access_key: str = None):
     """
 
     allowed_services = []
-    for service_name, service in config.services.items():
+    for service_name, service in services.items():
         if service.allows(access_key):
             allowed_services.append({
                 "name": service_name,
@@ -106,12 +108,12 @@ async def get_service_status(service_name: str, access_key: str = None):
     :param service_name: The service name
     :param access_key: The access key
     """
-    service = config.services.get(service_name)
+    service = services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.STATUS)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    compose_executor = ComposeExecutor(service)
+    compose_executor = ComposeCli(service)
 
     return compose_executor.status()
 
@@ -124,7 +126,7 @@ async def start_service(service_name: str, access_key: str = None):
     :param access_key: The access key
     :return:
     """
-    service = config.services.get(service_name)
+    service = services.get(service_name)
 
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.MANAGE)
     if not authorized:
@@ -134,10 +136,8 @@ async def start_service(service_name: str, access_key: str = None):
     _add_system_log_line(service_name, f"Starting {service_name}...")
     _add_system_log_line(service_name, f"")
 
-    composes_executor = ComposeExecutor(service)
+    composes_executor = ComposeCli(service)
     composes_executor.start()
-
-
 
     return {"message": f"Started {service_name}"}
 
@@ -150,17 +150,20 @@ async def stop_service(service_name: str, access_key: str = None):
     :param access_key: The access key
     :return:
     """
-    service = config.services.get(service_name)
+    service = services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.MANAGE)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    compose_executor = ComposeExecutor(service)
-    compose_executor.stop()
-
     _add_system_log_line(service_name, f"")
     _add_system_log_line(service_name, f"Stopped {service_name}...")
     _add_system_log_line(service_name, f"")
+
+    compose_executor = ComposeCli(service)
+    compose_executor.stop()
+    reader = log_process_reader.get(service_name)
+    if reader:
+        reader.stop()
 
     return {"message": f"Stopped {service_name}"}
 
@@ -173,12 +176,12 @@ async def get_logs(service_name: str, access_key: str = None):
     :param access_key: The access key
     :return:
     """
-    service = config.services.get(service_name)
+    service = services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.LOGS)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    compose_executor = ComposeExecutor(service)
+    compose_executor = ComposeCli(service)
 
     if not compose_executor.status() and service_name in logs_cache:
         return sorted(set(logs_cache[service_name]), key=lambda x: x[1])
@@ -201,7 +204,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
     """
     await ws_connection_manager.connect(websocket)
 
-    service = config.services.get(service_name)
+    service = services.get(service_name)
     if not service:
         await ws_connection_manager.send_personal_message(f"Service {service_name} not found", websocket)
         ws_connection_manager.disconnect(websocket)
@@ -213,7 +216,7 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
         ws_connection_manager.disconnect(websocket)
         return
 
-    compose_executor = ComposeExecutor(service)
+    compose_executor = ComposeCli(service)
     reader = _get_log_process_reader(compose_executor)
 
     def _send_line(line: ParsedComposeLogLine):
