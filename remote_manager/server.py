@@ -1,14 +1,11 @@
 import asyncio
 import json
 import os
-from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from remote_manager.compose_cli import ComposeCli
-from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
-from remote_manager.compose_parsing import parse_compose_log_lines, ParsedComposeLogLine
+from remote_manager.compose_parsing import ComposeLogLine
 from remote_manager.compose_service import AccessKeyScope
 from remote_manager.config_parsing import parse_config
 from remote_manager.ws_connection_manager import WsConnectionManager
@@ -18,7 +15,6 @@ CONFIG_FILE = os.getcwd() + "/config.json"
 app = FastAPI()
 ws_connection_manager = WsConnectionManager()
 asyncio_loop = asyncio.get_event_loop()
-log_process_reader: dict[str, ComposeProcessStdoutReader] = {}
 
 origins = [
     "*"
@@ -32,30 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logs_cache: dict[str, list[ParsedComposeLogLine]] = {}
-
 if not os.path.exists(CONFIG_FILE):
     raise FileNotFoundError(f"Config file {CONFIG_FILE} not found")
 
 with open(CONFIG_FILE, "r") as f:
     cnt = json.load(f)
     services = parse_config(cnt)
-
-
-def _get_log_process_reader(executor: ComposeCli) -> ComposeProcessStdoutReader:
-    service = executor.service
-
-    def _on_close():
-        # Remove dead process readers
-        print(f"Removing log process reader for {service.name}")
-        log_process_reader.pop(service.name)
-
-    if service.name not in log_process_reader:
-        reader = ComposeProcessStdoutReader(executor.get_log_process())
-        reader.on_close(_on_close)
-        log_process_reader[service.name] = reader
-
-    return log_process_reader[service.name]
 
 
 def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> (bool, str | None):
@@ -71,15 +49,6 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     if not service.allows(access_key, scope):
         return False, f"Key is not authorized to access scope {scope} of {service_name}"
     return True, None
-
-
-def _add_system_log_line(service_name: str, line: str) -> None:
-    now = datetime.now()
-    parsed = ("system", now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), f"{line}")
-    compose_executor = ComposeCli(services.get(service_name))
-    line_reader = _get_log_process_reader(compose_executor)
-    line_reader.add_system_log_line(parsed)
-
 
 
 @app.get("/services")
@@ -113,9 +82,7 @@ async def get_service_status(service_name: str, access_key: str = None):
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    compose_executor = ComposeCli(service)
-
-    return compose_executor.status()
+    return service.running()
 
 
 @app.post("/start/{service_name}")
@@ -132,12 +99,11 @@ async def start_service(service_name: str, access_key: str = None):
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    _add_system_log_line(service_name, f"")
-    _add_system_log_line(service_name, f"Starting {service_name}...")
-    _add_system_log_line(service_name, f"")
+    service.add_system_log_line( f"")
+    service.add_system_log_line(f"Starting service '{service_name}'...")
+    service.add_system_log_line(f"")
 
-    composes_executor = ComposeCli(service)
-    composes_executor.start()
+    service.start()
 
     return {"message": f"Started {service_name}"}
 
@@ -155,15 +121,11 @@ async def stop_service(service_name: str, access_key: str = None):
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    _add_system_log_line(service_name, f"")
-    _add_system_log_line(service_name, f"Stopped {service_name}...")
-    _add_system_log_line(service_name, f"")
+    service.stop()
 
-    compose_executor = ComposeCli(service)
-    compose_executor.stop()
-    reader = log_process_reader.get(service_name)
-    if reader:
-        reader.stop()
+    service.add_system_log_line(f"")
+    service.add_system_log_line(f"Stopped service '{service_name}'...")
+    service.add_system_log_line(f"")
 
     return {"message": f"Stopped {service_name}"}
 
@@ -181,16 +143,7 @@ async def get_logs(service_name: str, access_key: str = None):
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    compose_executor = ComposeCli(service)
-
-    if not compose_executor.status() and service_name in logs_cache:
-        return sorted(set(logs_cache[service_name]), key=lambda x: x[1])
-
-    lines = compose_executor.get_logs()
-
-    logs_cache[service_name] = parse_compose_log_lines(lines)
-
-    return sorted(set(logs_cache[service_name]), key=lambda x: x[1])
+    return service.get_logs()
 
 
 @app.websocket("/ws/logs/{service_name}")
@@ -216,25 +169,14 @@ async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key
         ws_connection_manager.disconnect(websocket)
         return
 
-    compose_executor = ComposeCli(service)
-    reader = _get_log_process_reader(compose_executor)
 
-    def _send_line(line: ParsedComposeLogLine):
-
+    def _send_line(line: ComposeLogLine):
         if not line:
             return
 
-        if service_name not in logs_cache:
-            logs_cache[service_name] = []
-
-        logs_cache[service_name].append(line)
-
-        if len(logs_cache[service_name]) > 250:
-            logs_cache[service_name] = logs_cache[service_name][-250:]
-
         asyncio_loop.create_task(ws_connection_manager.send_personal_message(json.dumps(line), websocket))
 
-    unregister = reader.on_read_line(_send_line, 0)
+    unregister = service.listen(_send_line)
 
     while True:
         try:

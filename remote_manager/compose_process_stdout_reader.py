@@ -2,9 +2,9 @@ import subprocess
 from _thread import start_new_thread
 from typing import Callable
 
-from remote_manager.compose_parsing import parse_compose_log_line, ParsedComposeLogLine
+from remote_manager.compose_parsing import parse_compose_log_line, ComposeLogLine
 
-OnReadLineCallback = Callable[[ParsedComposeLogLine], None]
+OnReadLineCallback = Callable[[ComposeLogLine], None]
 OnCloseCallback = Callable[[], None]
 UnregisterCallback = Callable[[], None]
 
@@ -28,22 +28,16 @@ class ComposeProcessStdoutReader:
         """
         self.process = process
         self._thread = start_new_thread(self._read_stdout, ())
-        self._lines: list[ParsedComposeLogLine] = []
         self._observers: list[OnReadLineCallback] = []
         self._on_close: list[OnCloseCallback] = []
         self._closed = False
 
-    def on_read_line(self, callback: OnReadLineCallback, included_number_of_old_lines: int = 0) -> UnregisterCallback:
+    def on_read_line(self, callback: OnReadLineCallback) -> UnregisterCallback:
         """
         Register a callback that will be called when a new line is read.
         :param callback:  The callback
-        :param included_number_of_old_lines: The number of old lines that should be included in the callback
         """
         self._observers.append(callback)
-
-        for line in self._lines[-included_number_of_old_lines:]:
-            callback(line)
-
         return lambda: self._observers.remove(callback)
 
     def on_close(self, callback: OnCloseCallback) -> UnregisterCallback:
@@ -65,15 +59,7 @@ class ComposeProcessStdoutReader:
                 callback()
         self._closed = True
 
-    def add_system_log_line(self, line: ParsedComposeLogLine) -> None:
-        """
-        Add a system log line to the list of lines read.
-        :param line: The line to add
-        """
-        self._lines.append(line)
-        self._notify_observers(line)
-
-    def _notify_observers(self, line: ParsedComposeLogLine) -> None:
+    def _notify_observers(self, line: ComposeLogLine) -> None:
         for observer in self._observers:
             observer(line)
 
@@ -81,8 +67,12 @@ class ComposeProcessStdoutReader:
         while True:
             line = self.process.stdout.readline()
             if not line and self.process.poll() is not None:
+                break
+            decoded_line = line.decode("utf-8").strip()
+            parsed_line = parse_compose_log_line(decoded_line)
+
+            if not parsed_line:
                 continue
-            line = line.decode("utf-8").strip()
-            parsed_line = parse_compose_log_line(line)
-            self._lines.append(parsed_line)
             self._notify_observers(parsed_line)
+
+        self.stop()

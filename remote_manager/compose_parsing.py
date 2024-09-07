@@ -1,9 +1,9 @@
 import re
 
-ParsedComposeLogLine = tuple[str, str, str]
+ComposeLogLine = tuple[str, str, str]
 
 
-def parse_compose_log_line(line: str) -> ParsedComposeLogLine | None:
+def parse_compose_log_line(line: str) -> ComposeLogLine | None:
     """
     Extracts the name, timestamp and log message from the original docker compose log line
     :param line:
@@ -20,12 +20,12 @@ def parse_compose_log_line(line: str) -> ParsedComposeLogLine | None:
     log_no_ts = log.replace(full_timestamp, "", 1)
 
     if name and full_timestamp and log_no_ts:
-        return name.strip(), full_timestamp, log_no_ts.strip()
+        return name.strip(), full_timestamp.strip(), log_no_ts.strip()
 
     return None
 
 
-def parse_compose_log_lines(lines: list[str]) -> list[ParsedComposeLogLine]:
+def parse_compose_log_lines(lines: list[str]) -> list[ComposeLogLine]:
     """
     Extracts the name, timestamp and log message from the log lines.
     :param lines:
