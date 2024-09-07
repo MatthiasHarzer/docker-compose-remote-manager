@@ -20,7 +20,7 @@ def parse_compose_log_line(line: str) -> ComposeLogLine | None:
     log_no_ts = log.replace(full_timestamp, "", 1)
 
     if name and full_timestamp and log_no_ts:
-        return name.strip(), full_timestamp.strip(), log_no_ts.strip()
+        return name.strip(), full_timestamp.strip(), log_no_ts
 
     return None
 
