@@ -82,12 +82,12 @@ class ComposeCli:
         return subprocess.run(self._build_cmd("ps", "--services", "--filter", "status=running"),
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().strip() != ""
 
-    def get_logs(self) -> list[ComposeLogLine]:
+    def get_logs(self, tail: int = 250) -> list[ComposeLogLine]:
         """
         Get the logs of the service.
         :return:
         """
-        lines = subprocess.run(self._build_cmd("logs", "--tail=250", "-t"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().split(
+        lines = subprocess.run(self._build_cmd("logs", f"--tail={tail}", "-t"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().split(
             "\n")
         return parse_compose_log_lines(lines)
 
@@ -116,7 +116,7 @@ class ComposeService(Observable[ComposeLogLine]):
     def __post_init__(self):
         if self._cli.running():
             self._register_std_out_reader()
-            self.logs = self._cli.get_logs()
+            self.logs = self._cli.get_logs(LOG_LINE_LIMIT)
 
     def _register_std_out_reader(self):
         if self.std_out_reader:
