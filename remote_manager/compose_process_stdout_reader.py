@@ -1,5 +1,5 @@
 import subprocess
-from _thread import start_new_thread
+from threading import Thread
 from typing import Callable
 
 from remote_manager.compose_parsing import parse_compose_log_line, ComposeLogLine
@@ -27,10 +27,11 @@ class ComposeProcessStdoutReader:
 
         """
         self.process = process
-        self._thread = start_new_thread(self._read_stdout, ())
+        self._thread = Thread(target=self._read_stdout, daemon=True)
         self._observers: list[OnReadLineCallback] = []
         self._on_close: list[OnCloseCallback] = []
         self._closed = False
+        self._thread.start()
 
     def on_read_line(self, callback: OnReadLineCallback) -> UnregisterCallback:
         """
