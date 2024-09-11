@@ -9,7 +9,7 @@ from remote_manager.compose_parsing import ComposeLogLine, parse_compose_log_lin
 from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
 from remote_manager.observable import Observable
 
-LOG_LINE_LIMIT = 500
+LOG_LINE_LIMIT = 5000
 
 
 class AccessKeyScope(StrEnum):
