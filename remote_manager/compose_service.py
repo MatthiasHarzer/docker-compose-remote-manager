@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,7 +10,7 @@ from remote_manager.compose_parsing import ComposeLogLine, parse_compose_log_lin
 from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
 from remote_manager.observable import Observable
 
-LOG_LINE_LIMIT = 5000
+LOG_LINE_LIMIT = os.environ.get("LOG_LINE_LIMIT", 2000)
 
 
 class AccessKeyScope(StrEnum):
