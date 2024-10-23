@@ -46,6 +46,28 @@ class AccessKey:
         """
         return scope in self.scopes or AccessKeyScope.MANAGE in self.scopes
 
+@dataclass
+class Command:
+    command: list[str]
+    label: str
+
+    def __post_init__(self):
+        if not self.label:
+            self.label = " ".join(self.command)
+
+    def get_completed_command(self, user_arg: list[str]) -> list[str]:
+        """
+        Get the completed command with the user argument.
+        :param user_arg:
+        :return: The completed command
+        """
+        #? Maybe add template syntax in the future?
+        return self.command + user_arg
+
+    @classmethod
+    def default(cls, command: list[str] | None = None) -> Command:
+        command_name = "default" if not command else " ".join(command)
+        return Command(command or [], command_name)
 
 class ComposeCli:
     def __init__(self, service: ComposeService):
@@ -101,6 +123,21 @@ class ComposeCli:
         return subprocess.Popen(self._build_cmd("logs", "-f", "--tail=0", "-t"), stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
 
+    def execute_command(self, sub_service: str, *command: str) -> tuple[bool, str]:
+        """
+        Execute a command in the service.
+        :param sub_service:
+        :param command:
+        :return: A tuple with a boolean indicating success and the output
+        """
+        try:
+            output = subprocess.check_output(self._build_cmd("exec", sub_service, *command), stderr=subprocess.STDOUT)
+            return True, output.decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            return False, e.output.decode("utf-8")
+
+
+type CommandsOption = dict[str, Command | bool] | bool
 
 @dataclass
 class ComposeService(Observable[ComposeLogLine]):
@@ -108,6 +145,7 @@ class ComposeService(Observable[ComposeLogLine]):
     cwd: str
     compose_file: str = "docker-compose.yml"
     access_keys: list[AccessKey] | None = None
+    commands: CommandsOption | bool = False
     logs: list[ComposeLogLine] = field(default_factory=list)
     std_out_reader: ComposeProcessStdoutReader | None = None
 
@@ -118,12 +156,33 @@ class ComposeService(Observable[ComposeLogLine]):
     def __post_init__(self):
         self.__health_check__()
 
-    def __health_check__(self):
-        if self._cli.running() and not self.std_out_reader:
+    def __health_check__(self) -> bool:
+        running = self._cli.running()
+        if running and not self.std_out_reader:
             self._register_std_out_reader()
             self.logs = self._cli.get_logs(LOG_LINE_LIMIT)
-        elif not self._cli.running() and self.std_out_reader:
+        elif not running and self.std_out_reader:
             self._unregister_std_out_reader()
+
+        return running
+
+    def _allows_command(self, sub_service: str):
+        if not self.commands:
+            return False
+
+        if isinstance(self.commands, dict):
+            return sub_service in self.commands
+
+        return self.commands
+
+    def _get_command(self, sub_service: str) -> Command | None:
+        if not self._allows_command(sub_service):
+            return None
+
+        if isinstance(self.commands, dict):
+            return self.commands.get(sub_service)
+
+        return Command.default()
 
     def _register_std_out_reader(self):
         if self.std_out_reader:
@@ -186,14 +245,22 @@ class ComposeService(Observable[ComposeLogLine]):
         self.logs = self.logs[-LOG_LINE_LIMIT:]
         self.notify(line)
 
-    def add_system_log_line(self, line: str) -> None:
+    def add_system_log_line(self, raw_lines: str) -> None:
         """
         Add a system log line to the service.
-        :param line:
+        :param raw_lines:
         """
         now = datetime.now()
-        compose_line = ("system", now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), f"{line}")
-        self.add_log_line(compose_line)
+
+        lines = raw_lines.split("\n")
+
+        for line in lines:
+            stripped_line = line.strip()
+            if not stripped_line:
+                continue
+
+            compose_line = ("system", now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), f"{line}")
+            self.add_log_line(compose_line)
 
     def start(self) -> None:
         """
@@ -216,8 +283,7 @@ class ComposeService(Observable[ComposeLogLine]):
         Get the status of the service.
         :return:
         """
-        self.__health_check__()
-        return self._cli.running()
+        return self.__health_check__()
 
     def get_logs(self) -> list[ComposeLogLine]:
         """
@@ -226,4 +292,24 @@ class ComposeService(Observable[ComposeLogLine]):
         """
         self.__health_check__()
         return self.logs
+
+    def execute_command(self, sub_service: str, user_arg: list[str]) -> tuple[bool, str]:
+        """
+        Execute a command in the service.
+        :param sub_service:
+        :param user_arg:
+        :return:
+        """
+
+        if not self._allows_command(sub_service):
+            return False, f"Commands for '{sub_service}' are not allowed"
+
+        command = self._get_command(sub_service)
+
+        if not command:
+            return False, f"Sub service '{sub_service}' not found"
+
+        completed_command = command.get_completed_command(user_arg)
+
+        return self._cli.execute_command(sub_service, *completed_command)
 

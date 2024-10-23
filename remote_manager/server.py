@@ -1,12 +1,14 @@
 import asyncio
 import json
 import os
+from typing import Annotated
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from remote_manager.compose_parsing import ComposeLogLine
-from remote_manager.compose_service import AccessKeyScope
+from remote_manager.compose_service import AccessKeyScope, CommandsOption
 from remote_manager.config_parsing import parse_config
 from remote_manager.ws_connection_manager import WsConnectionManager
 
@@ -36,7 +38,7 @@ with open(CONFIG_FILE, "r") as f:
     services = parse_config(cnt)
 
 
-def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> (bool, str | None):
+def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> tuple[bool, str | None]:
     """
     Authenticate the access key.
     :param service_name: The service name
@@ -50,6 +52,18 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
         return False, f"Key is not authorized to access scope {scope} of {service_name}"
     return True, None
 
+def format_commands(commands: CommandsOption) -> dict | bool:
+    if isinstance(commands, bool):
+        return commands
+
+    formatted_commands = {}
+
+    for name, command in commands.items():
+        formatted_commands[name] = {
+            "label": command.label if not isinstance(command, bool) else name,
+        }
+
+    return formatted_commands
 
 @app.get("/services")
 async def get_services(access_key: str = None):
@@ -64,7 +78,8 @@ async def get_services(access_key: str = None):
         if service.allows(access_key):
             allowed_services.append({
                 "name": service_name,
-                "scopes": service.get_access_key_allowed_scopes(access_key)
+                "scopes": service.get_access_key_allowed_scopes(access_key),
+                "commands": format_commands(service.commands)
             })
 
     return allowed_services
@@ -130,6 +145,39 @@ async def stop_service(service_name: str, access_key: str = None):
     return {"message": f"Stopped {service_name}"}
 
 
+class CommandRequest(BaseModel):
+    sub_service: str
+    command: list[str]
+
+@app.post("/command/{service_name}")
+async def run_command(service_name: str, command_request: CommandRequest, access_key: str = None):
+    """
+    Run a command on the docker compose service
+    :param service_name: The service name
+    :param command_request: The command request
+    :param access_key: The access key
+    :return:
+    """
+
+    sub_service = command_request.sub_service
+    command = command_request.command
+
+    service = services.get(service_name)
+    authorized, message = _authenticate(service_name, access_key, AccessKeyScope.COMMANDS)
+    if not authorized:
+        raise HTTPException(status_code=401, detail=message)
+
+    service.add_system_log_line(f"[{service_name}] Running command '{command}'")
+
+    success, output = service.execute_command(sub_service, command)
+
+    if not success:
+        service.add_system_log_line(f"[{service_name}] Command failed: {output}")
+    else:
+        service.add_system_log_line(f"[{service_name}] Command output:\n{output}")
+
+    return {"success": success, "output": output}
+
 @app.get("/logs/{service_name}")
 async def get_logs(service_name: str, access_key: str = None):
     """
@@ -147,7 +195,7 @@ async def get_logs(service_name: str, access_key: str = None):
 
 
 @app.websocket("/ws/logs/{service_name}")
-async def websocket_endpoint(websocket: WebSocket, service_name: str, access_key: str = None):
+async def ws_logs(websocket: WebSocket, service_name: str, access_key: str = None):
     """
     Get the logs of the docker compose service. Writes existing and new logs to the websocket.
     :param websocket:

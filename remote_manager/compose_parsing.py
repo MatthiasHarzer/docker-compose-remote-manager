@@ -37,4 +37,3 @@ def parse_compose_log_lines(lines: list[str]) -> list[ComposeLogLine]:
         if log:
             logs.append(log)
     return logs
-

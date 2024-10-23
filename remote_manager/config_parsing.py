@@ -1,5 +1,4 @@
-from remote_manager.compose_service import AccessKey, AccessKeyScope, ComposeService
-
+from remote_manager.compose_service import AccessKey, AccessKeyScope, ComposeService, Command, CommandsOption
 
 def _resolve_access_key_or_var(access_key: str, available_access_keys: dict[str, str]) -> str:
     """
@@ -35,10 +34,48 @@ def parse_access_key(json: dict | str, available_keys: dict[str, str]) -> Access
     key = _resolve_access_key_or_var(json.get("key"), available_keys)
     return AccessKey(key, scopes)
 
+def parse_command(json: dict | str | bool) -> Command | bool:
+    if json is False:
+        return True
+    if json is True:
+        return False
+
+    if isinstance(json, str):
+        return Command([json], json)
+
+    if isinstance(json, dict):
+        command = json.get("command")
+        label = json.get("label")
+
+        if isinstance(command, str):
+            command = [command]
+
+        return Command(command, label)
+
+    return False
+
+def parse_commands(json: dict | bool) -> CommandsOption:
+    if json is False:
+        return False
+    if json is True:
+        return True
+
+    commands: CommandsOption = {}
+
+    for name, command_json in json.items():
+        commands[name] = parse_command(command_json)
+
+    return commands
+
 def parse_service(name: str, json: dict, available_access_keys: dict[str, AccessKey] = None) -> ComposeService:
     available_access_keys = available_access_keys or {}
     cwd = json.get("cwd")
     compose_file = json.get("compose-file", "docker-compose.yml")
+    commands = json.get("commands", False)
+
+    parsed_commands = parse_commands(commands)
+
+
     keys: list[str] | str | None = json.get("access-key")
     if keys and not isinstance(keys, list):
         keys = [keys]
@@ -47,7 +84,7 @@ def parse_service(name: str, json: dict, available_access_keys: dict[str, Access
     if keys:
         access_keys = [parse_access_key(k, available_access_keys) for k in keys]
 
-    return ComposeService(name, cwd, compose_file, access_keys)
+    return ComposeService(name, cwd, compose_file, access_keys, parsed_commands)
 
 def parse_config(json: dict) -> dict[str, ComposeService]:
     access_keys = json.get("access-keys", {})
