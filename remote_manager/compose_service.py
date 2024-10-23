@@ -20,6 +20,7 @@ class AccessKeyScope(StrEnum):
     MANAGE = "manage"
     LOGS = "logs"
     STATUS = "status"
+    COMMANDS = "commands"
 
     @staticmethod
     def all() -> list[AccessKeyScope]:
@@ -27,7 +28,7 @@ class AccessKeyScope(StrEnum):
         Get all access key scopes.
         :return:
         """
-        return [AccessKeyScope.MANAGE, AccessKeyScope.LOGS, AccessKeyScope.STATUS]
+        return [AccessKeyScope.MANAGE, AccessKeyScope.LOGS, AccessKeyScope.STATUS, AccessKeyScope.COMMANDS]
 
 @dataclass
 class AccessKey:
@@ -115,9 +116,14 @@ class ComposeService(Observable[ComposeLogLine]):
         return ComposeCli(self)
 
     def __post_init__(self):
-        if self._cli.running():
+        self.__health_check__()
+
+    def __health_check__(self):
+        if self._cli.running() and not self.std_out_reader:
             self._register_std_out_reader()
             self.logs = self._cli.get_logs(LOG_LINE_LIMIT)
+        elif not self._cli.running() and self.std_out_reader:
+            self._unregister_std_out_reader()
 
     def _register_std_out_reader(self):
         if self.std_out_reader:
@@ -210,15 +216,14 @@ class ComposeService(Observable[ComposeLogLine]):
         Get the status of the service.
         :return:
         """
-        running = self._cli.running()
-        if running and not self.std_out_reader:
-            self._register_std_out_reader()
-        return running
+        self.__health_check__()
+        return self._cli.running()
 
     def get_logs(self) -> list[ComposeLogLine]:
         """
         Get the logs of the service.
         :return:
         """
+        self.__health_check__()
         return self.logs
 
