@@ -171,7 +171,7 @@ async def run_command(service_name: str, command_request: CommandRequest, access
     :return:
     """
 
-    command = command_request.command
+    user_command = command_request.command
     command_id = command_request.command_id
 
     service = services.get(service_name)
@@ -179,10 +179,16 @@ async def run_command(service_name: str, command_request: CommandRequest, access
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    command_str = " ".join([f"\"{c}\"" if ' ' in c else c for c in command])
-    service.add_system_log_line(f"[{service_name}]> '{command_str}'")
+    command = service.get_command(command_id)
 
-    success, output = service.execute_command(command_id, command)
+    if not command:
+        raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
+
+    command_str = " ".join([f"\"{c}\"" if ' ' in c else c for c in command.get_completed_command(user_command)])
+    service.add_system_log_line(f"[{service_name}/{command.sub_service}]> '{command_str}'")
+
+
+    success, output = service.execute_command(command, user_command)
 
     if not success:
         service.add_system_log_line(f"[{service_name}] Failed: {output}")

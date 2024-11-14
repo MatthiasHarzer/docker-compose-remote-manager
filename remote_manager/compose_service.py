@@ -159,7 +159,7 @@ class ComposeService(Observable[ComposeLogLine]):
         self.access_keys = access_keys or []
         self.sub_services = self._cli.get_sub_services()
         self.commands = self._get_commands(parsed_commands)
-        self.log: list[ComposeLogLine] = []
+        self.logs: list[ComposeLogLine] = []
         self.std_out_reader: ComposeProcessStdoutReader | None = None
         self.__health_check__()
 
@@ -186,7 +186,7 @@ class ComposeService(Observable[ComposeLogLine]):
         return parsed_commands
 
 
-    def _get_command(self, command_id: str) -> Command | None:
+    def get_command(self, command_id: str) -> Command | None:
         for command in self.commands:
             if command.id == command_id:
                 return command
@@ -302,18 +302,10 @@ class ComposeService(Observable[ComposeLogLine]):
         self.__health_check__()
         return self.logs
 
-    def execute_command(self, command_id: str, user_arg: list[str]) -> tuple[bool, str]:
+    def execute_command(self, command: Command, user_arg: list[str]) -> tuple[bool, str]:
         """
         Execute a command in the service.
-        :param command_id:
-        :param user_arg:
-        :return:
         """
-
-        command = self._get_command(command_id)
-
-        if not command:
-            return False, f"Command {command_id} not found"
 
         completed_command = command.get_completed_command(user_arg)
 
