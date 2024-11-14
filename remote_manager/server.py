@@ -1,14 +1,13 @@
 import asyncio
 import json
 import os
-from typing import Annotated
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from remote_manager.compose_parsing import ComposeLogLine
-from remote_manager.compose_service import AccessKeyScope, CommandsOption
+from remote_manager.compose_service import AccessKeyScope, ComposeService
 from remote_manager.config_parsing import parse_config
 from remote_manager.ws_connection_manager import WsConnectionManager
 
@@ -52,16 +51,28 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
         return False, f"Key is not authorized to access scope {scope} of {service_name}"
     return True, None
 
-def format_commands(commands: CommandsOption) -> dict | bool:
-    if isinstance(commands, bool):
-        return commands
+def format_commands(service: ComposeService) -> list[dict]:
+    commands = service.commands
+    if commands is False:
+        return []
 
-    formatted_commands = {}
+    if commands is True:
+        cmds = []
+        for sub_service in service.sub_services:
+            cmds.append({
+                "sub_service": sub_service,
+                "label": "STD::IN",
+            })
+        return cmds
 
-    for name, command in commands.items():
-        formatted_commands[name] = {
-            "label": command.label if not isinstance(command, bool) else name,
-        }
+    formatted_commands = []
+
+    for command in commands:
+        formatted_commands.append({
+            "id": command.id,
+            "sub_service": command.sub_service,
+            "label": command.label,
+        })
 
     return formatted_commands
 
@@ -79,7 +90,8 @@ async def get_services(access_key: str = None):
             allowed_services.append({
                 "name": service_name,
                 "scopes": service.get_access_key_allowed_scopes(access_key),
-                "commands": format_commands(service.commands)
+                "sub_services": service.sub_services,
+                "commands": format_commands(service)
             })
 
     return allowed_services
@@ -146,7 +158,7 @@ async def stop_service(service_name: str, access_key: str = None):
 
 
 class CommandRequest(BaseModel):
-    sub_service: str
+    command_id: str
     command: list[str]
 
 @app.post("/command/{service_name}")
@@ -159,22 +171,23 @@ async def run_command(service_name: str, command_request: CommandRequest, access
     :return:
     """
 
-    sub_service = command_request.sub_service
     command = command_request.command
+    command_id = command_request.command_id
 
     service = services.get(service_name)
     authorized, message = _authenticate(service_name, access_key, AccessKeyScope.COMMANDS)
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    service.add_system_log_line(f"[{service_name}] Running command '{command}'")
+    command_str = " ".join([f"\"{c}\"" if ' ' in c else c for c in command])
+    service.add_system_log_line(f"[{service_name}]> '{command_str}'")
 
-    success, output = service.execute_command(sub_service, command)
+    success, output = service.execute_command(command_id, command)
 
     if not success:
-        service.add_system_log_line(f"[{service_name}] Command failed: {output}")
+        service.add_system_log_line(f"[{service_name}] Failed: {output}")
     else:
-        service.add_system_log_line(f"[{service_name}] Command output:\n{output}")
+        service.add_system_log_line(f"{output}")
 
     return {"success": success, "output": output}
 

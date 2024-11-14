@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -48,6 +49,8 @@ class AccessKey:
 
 @dataclass
 class Command:
+    id: str
+    sub_service: str
     command: list[str]
     label: str
 
@@ -65,9 +68,9 @@ class Command:
         return self.command + user_arg
 
     @classmethod
-    def default(cls, command: list[str] | None = None) -> Command:
+    def default(cls, sub_service: str, command: list[str] | None = None) -> Command:
         command_name = "default" if not command else " ".join(command)
-        return Command(command or [], command_name)
+        return Command(str(uuid.uuid4()), sub_service, command or [], command_name)
 
 class ComposeCli:
     def __init__(self, service: ComposeService):
@@ -82,7 +85,7 @@ class ComposeCli:
         return self.cwd + "/" + self.service.compose_file
 
     def _build_cmd(self, *cmd: str) -> list[str]:
-        return ["docker", "compose", "-f", self.compose_file, *cmd]
+        return ["docker", "--log-level", "ERROR", "compose", "-f", self.compose_file, *cmd]
 
     def start(self) -> None:
         """
@@ -105,6 +108,15 @@ class ComposeCli:
         """
         return subprocess.run(self._build_cmd("ps", "--services", "--filter", "status=running"),
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().strip() != ""
+
+    def get_sub_services(self) -> list[str]:
+        """
+        Get the sub services of the service.
+        :return:
+        """
+        services = subprocess.run(self._build_cmd("config", "--services"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().split(
+            "\n")
+        return [s.strip() for s in services if s]
 
     def get_logs(self, tail: int = 250) -> list[ComposeLogLine]:
         """
@@ -137,24 +149,23 @@ class ComposeCli:
             return False, e.output.decode("utf-8")
 
 
-type CommandsOption = dict[str, Command | bool] | bool
+type CommandsOption = list[Command] | bool
 
-@dataclass
 class ComposeService(Observable[ComposeLogLine]):
-    name: str
-    cwd: str
-    compose_file: str = "docker-compose.yml"
-    access_keys: list[AccessKey] | None = None
-    commands: CommandsOption | bool = False
-    logs: list[ComposeLogLine] = field(default_factory=list)
-    std_out_reader: ComposeProcessStdoutReader | None = None
+    def __init__(self, name: str, cwd: str, compose_file: str, access_keys: list[AccessKey] | None, parsed_commands: CommandsOption):
+        self.name = name
+        self.cwd = cwd
+        self.compose_file = compose_file
+        self.access_keys = access_keys or []
+        self.sub_services = self._cli.get_sub_services()
+        self.commands = self._get_commands(parsed_commands)
+        self.log: list[ComposeLogLine] = []
+        self.std_out_reader: ComposeProcessStdoutReader | None = None
+        self.__health_check__()
 
     @property
     def _cli(self) -> ComposeCli:
         return ComposeCli(self)
-
-    def __post_init__(self):
-        self.__health_check__()
 
     def __health_check__(self) -> bool:
         running = self._cli.running()
@@ -166,23 +177,21 @@ class ComposeService(Observable[ComposeLogLine]):
 
         return running
 
-    def _allows_command(self, sub_service: str):
-        if not self.commands:
-            return False
+    def _get_commands(self, parsed_commands: CommandsOption) -> list[Command]:
+        if parsed_commands is False:
+            return []
+        if parsed_commands is True:
+            return [Command(str(uuid.uuid4()), s, [], "default (std::in)") for s in self.sub_services]
 
-        if isinstance(self.commands, dict):
-            return sub_service in self.commands
+        return parsed_commands
 
-        return self.commands
 
-    def _get_command(self, sub_service: str) -> Command | None:
-        if not self._allows_command(sub_service):
-            return None
+    def _get_command(self, command_id: str) -> Command | None:
+        for command in self.commands:
+            if command.id == command_id:
+                return command
 
-        if isinstance(self.commands, dict):
-            return self.commands.get(sub_service)
-
-        return Command.default()
+        return None
 
     def _register_std_out_reader(self):
         if self.std_out_reader:
@@ -293,23 +302,20 @@ class ComposeService(Observable[ComposeLogLine]):
         self.__health_check__()
         return self.logs
 
-    def execute_command(self, sub_service: str, user_arg: list[str]) -> tuple[bool, str]:
+    def execute_command(self, command_id: str, user_arg: list[str]) -> tuple[bool, str]:
         """
         Execute a command in the service.
-        :param sub_service:
+        :param command_id:
         :param user_arg:
         :return:
         """
 
-        if not self._allows_command(sub_service):
-            return False, f"Commands for '{sub_service}' are not allowed"
-
-        command = self._get_command(sub_service)
+        command = self._get_command(command_id)
 
         if not command:
-            return False, f"Sub service '{sub_service}' not found"
+            return False, f"Command {command_id} not found"
 
         completed_command = command.get_completed_command(user_arg)
 
-        return self._cli.execute_command(sub_service, *completed_command)
+        return self._cli.execute_command(command.sub_service, *completed_command)
 

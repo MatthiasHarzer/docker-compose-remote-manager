@@ -1,4 +1,8 @@
+import uuid
+
 from remote_manager.compose_service import AccessKey, AccessKeyScope, ComposeService, Command, CommandsOption
+
+command_id = 0
 
 def _resolve_access_key_or_var(access_key: str, available_access_keys: dict[str, str]) -> str:
     """
@@ -34,36 +38,37 @@ def parse_access_key(json: dict | str, available_keys: dict[str, str]) -> Access
     key = _resolve_access_key_or_var(json.get("key"), available_keys)
     return AccessKey(key, scopes)
 
-def parse_command(json: dict | str | bool) -> Command | bool:
+def parse_command(json: dict) -> Command | None:
+    sub_service = json.get("sub-service")
+    command = json.get("command", "")
+    label = json.get("label")
+
+    if not sub_service:
+        return None
+
+
+    if isinstance(command, str):
+        command = [command]
+    if command is True:
+        command = []
+    elif command is False:
+        return None
+
+
+    return Command(str(uuid.uuid4()), sub_service, command, label)
+
+
+def parse_commands(json: list | bool) -> CommandsOption:
     if json is False:
-        return True
-    if json is True:
-        return False
-
-    if isinstance(json, str):
-        return Command([json], json)
-
-    if isinstance(json, dict):
-        command = json.get("command")
-        label = json.get("label")
-
-        if isinstance(command, str):
-            command = [command]
-
-        return Command(command, label)
-
-    return False
-
-def parse_commands(json: dict | bool) -> CommandsOption:
-    if json is False:
         return False
     if json is True:
         return True
 
-    commands: CommandsOption = {}
+    commands: CommandsOption = []
 
-    for name, command_json in json.items():
-        commands[name] = parse_command(command_json)
+    for item in json:
+        if parsed := parse_command(item):
+            commands.append(parsed)
 
     return commands
 
