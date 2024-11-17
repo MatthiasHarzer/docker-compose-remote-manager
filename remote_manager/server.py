@@ -185,14 +185,13 @@ async def run_command(service_name: str, command_request: CommandRequest, access
         raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
 
     command_str = " ".join([f"\"{c}\"" if ' ' in c else c for c in command.get_completed_command(user_command)])
-    service.add_system_log_line(f"[{service_name}/{command.sub_service}]> '{command_str}'")
-
+    service.add_system_log_line(f"[{service_name}/{command.sub_service}]> {command_str}")
 
     success, output = service.execute_command(command, user_command)
 
     if not success:
         service.add_system_log_line(f"[{service_name}] Failed: {output}")
-    else:
+    elif output.strip():
         service.add_system_log_line(f"{output}")
 
     return {"success": success, "output": output}
