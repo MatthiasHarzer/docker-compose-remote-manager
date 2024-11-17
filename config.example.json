@@ -7,6 +7,16 @@
         },
         "my-public-compose-app": {
             "cwd": "/home/username/my-public-compose-app"
+        },
+        "my-minecraft-server": {
+            "cwd": "/home/username/my-minecraft-server",
+            "commands": [
+                {
+                    "sub-service": "minecraft",
+                    "command": ["rcon-cli",  "say"],
+                    "label": "say something"
+                }
+            ]
         }
     },
     "access-keys": {

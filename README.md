@@ -7,7 +7,7 @@ This is a very simple API to manage Docker compose applications via HTTP request
 ## Installation
 
 - Clone the repository
-- Create a virtual environment using `python -m venv venv` (python 3.11+ is recommended)
+- Create a virtual environment using `python -m venv venv` (python 3.12+ is required)
 - Activate the virtual environment using `source venv/bin/activate`
 - Install the dependencies using `pip install -r requirements.txt`
 - Create a `config.json` file in the projects root directory. See the [config.json](#configuring-the-api) section for more information.
@@ -31,6 +31,7 @@ returns `true` if the service is running, `false` otherwise
 - `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml`
  file.
 - `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated. Does not include old logs.
+- `POST` `/command/{service}` - runs a custom command in the service directory. The command should be passed as a JSON object in the request body. For example: `{"command": "ls -la"}`. The response will be the output of the command.
 
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
