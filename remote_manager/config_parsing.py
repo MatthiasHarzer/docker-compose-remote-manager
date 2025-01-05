@@ -38,6 +38,15 @@ def parse_access_key(json: dict | str, available_keys: dict[str, str]) -> Access
     key = _resolve_access_key_or_var(json.get("key"), available_keys)
     return AccessKey(key, scopes)
 
+def parse_access_keys(keys: list[str] | str | None, available_keys: dict[str, str]) -> list[AccessKey]:
+    if not keys:
+        return []
+
+    if isinstance(keys, str):
+        keys = [keys]
+
+    return [parse_access_key(k, available_keys) for k in keys]
+
 def parse_command(json: dict) -> Command | None:
     sub_service = json.get("sub-service")
     command = json.get("command", "")
@@ -53,7 +62,6 @@ def parse_command(json: dict) -> Command | None:
         command = []
     elif command is False:
         return None
-
 
     return Command(str(uuid.uuid4()), sub_service, command, label)
 
@@ -72,22 +80,14 @@ def parse_commands(json: list | bool) -> CommandsOption:
 
     return commands
 
-def parse_service(name: str, json: dict, available_access_keys: dict[str, AccessKey] = None) -> ComposeService:
+def parse_service(name: str, json: dict, available_access_keys: dict[str, str] = None) -> ComposeService:
     available_access_keys = available_access_keys or {}
     cwd = json.get("cwd")
     compose_file = json.get("compose-file", "docker-compose.yml")
     commands = json.get("commands", False)
 
     parsed_commands = parse_commands(commands)
-
-
-    keys: list[str] | str | None = json.get("access-key")
-    if keys and not isinstance(keys, list):
-        keys = [keys]
-
-    access_keys = None
-    if keys:
-        access_keys = [parse_access_key(k, available_access_keys) for k in keys]
+    access_keys = parse_access_keys(json.get("access-key"), available_access_keys)
 
     return ComposeService(name, cwd, compose_file, access_keys, parsed_commands)
 

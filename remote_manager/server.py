@@ -9,13 +9,16 @@ from pydantic import BaseModel
 from remote_manager.compose_parsing import ComposeLogLine
 from remote_manager.compose_service import AccessKeyScope, ComposeService
 from remote_manager.config_parsing import parse_config
+from remote_manager.log_lines_cache_service import LogLinesCacheService
 from remote_manager.ws_connection_manager import WsConnectionManager
 
 CONFIG_FILE = os.getcwd() + "/config.json"
+LOG_LINES_CACHE_FILE = os.getcwd() + "/log_lines_cache.json"
 
 app = FastAPI()
 ws_connection_manager = WsConnectionManager()
 asyncio_loop = asyncio.get_event_loop()
+log_lines_cache_service = LogLinesCacheService(LOG_LINES_CACHE_FILE)
 
 origins = [
     "*"
@@ -35,6 +38,9 @@ if not os.path.exists(CONFIG_FILE):
 with open(CONFIG_FILE, "r") as f:
     cnt = json.load(f)
     services = parse_config(cnt)
+
+    log_lines_cache_service.load_lines(services.values())
+    log_lines_cache_service.observe_services(services.values())
 
 
 def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> tuple[bool, str | None]:
@@ -126,9 +132,7 @@ async def start_service(service_name: str, access_key: str = None):
     if not authorized:
         raise HTTPException(status_code=401, detail=message)
 
-    service.add_system_log_line( f"")
     service.add_system_log_line(f"Starting service '{service_name}'...")
-    service.add_system_log_line(f"")
 
     service.start()
 
@@ -150,9 +154,7 @@ async def stop_service(service_name: str, access_key: str = None):
 
     service.stop()
 
-    service.add_system_log_line(f"")
     service.add_system_log_line(f"Stopped service '{service_name}'...")
-    service.add_system_log_line(f"")
 
     return {"message": f"Stopped {service_name}"}
 

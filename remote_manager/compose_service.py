@@ -193,7 +193,7 @@ class ComposeService(Observable[ComposeLogLine]):
 
         return None
 
-    def _register_std_out_reader(self):
+    def _register_std_out_reader(self) -> None:
         if self.std_out_reader:
             return
 
@@ -201,9 +201,16 @@ class ComposeService(Observable[ComposeLogLine]):
         self.std_out_reader.on_read_line(self.add_log_line)
         self.std_out_reader.on_close(self._unregister_std_out_reader)
 
-    def _unregister_std_out_reader(self):
+    def _unregister_std_out_reader(self) -> None:
         if self.std_out_reader:
             self.std_out_reader = None
+
+    def set_log_lines(self, lines: list[ComposeLogLine]) -> None:
+        """
+        Set the log lines of the service.
+        :param lines:
+        """
+        self.logs = lines
 
     def allows(self, access_key: str, scope: AccessKeyScope | None = None) -> bool:
         """
