@@ -17,21 +17,18 @@ This is a very simple API to manage Docker compose applications via HTTP request
 
 To set up a system-wide service, you can use the `compose-remote-manager.service`-unit-file-template.
 
-#### Note 
-It's sadly not possible to dockerize this application, because it needs direct access to the host system to run the docker compose commands.
-
 ## Usage
 The API provides the following endpoints:
 
-- `GET` `/services` - returns a list of all services that are accessible with a given access key
-- `GET` `/status/{service}` -
+- `GET /services` - returns a list of all services that are accessible with a given access key
+- `GET /status/{service}` -
 returns `true` if the service is running, `false` otherwise 
-- `POST` `/start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
-- `POST` `/stop/{service}` - runs `docker compose down` in the service directory (stops the service)
-- `GET` `/logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml`
+- `POST /start/{service}` - runs `docker compose up -d` in the service directory (starts the service)
+- `POST /stop/{service}` - runs `docker compose down` in the service directory (stops the service)
+- `GET /logs/{service}` - returns the logs of the service (`docker compose logs`) format into an array of 3-tuples of the form `(service, timestamp, log)`, where `service` is the name of the service as defined in the `docker-compose.yml`
  file.
-- `WS` `/ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated. Does not include old logs.
-- `POST` `/command/{service}` - runs a custom command in the service directory. The command should be passed as a JSON object in the request body. For example: `{"command": "ls -la"}`. The response will be the output of the command.
+- `WS /ws/logs/{service}` - establishes a WebSocket connection to the service and returns the logs as they are generated. Does not include old logs.
+- `POST /command/{service}` - runs a custom command in the service directory. The command should be passed as a JSON object in the request body. For example: `{"command": "ls -la"}`. The response will be the output of the command.
 
 The `{service}` parameter is the name of the service as defined in the `config.json` file.
 
