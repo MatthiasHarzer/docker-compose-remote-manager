@@ -1,24 +1,62 @@
 import asyncio
 import json
+import logging
 import os
+from logging.config import dictConfig
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from remote_manager.compose_parsing import ComposeLogLine
 from remote_manager.compose_service import AccessKeyScope, ComposeService
 from remote_manager.config_parsing import parse_config
-from remote_manager.log_lines_cache_service import LogLinesCacheService
 from remote_manager.ws_connection_manager import WsConnectionManager
 
-CONFIG_FILE = os.getcwd() + "/config.json"
-LOG_LINES_CACHE_FILE = os.getcwd() + "/log_lines_cache.json"
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        },
+        "json": {
+            "format": '{"timestamp": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "message": "%(message)s"}'
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default"
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "app.log",
+            "formatter": "json"
+        },
+    },
+    "loggers": {
+        "uvicorn": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False
+        },
+        "app": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": False
+        },
+    },
+}
+
+dictConfig(LOGGING_CONFIG)
+log = logging.getLogger("app")
+
+CONFIG_FILE = os.getcwd() + "/config_dev.json"
 
 app = FastAPI()
 ws_connection_manager = WsConnectionManager()
 asyncio_loop = asyncio.get_event_loop()
-log_lines_cache_service = LogLinesCacheService(LOG_LINES_CACHE_FILE)
 
 origins = [
     "*"
@@ -39,9 +77,6 @@ with open(CONFIG_FILE, "r") as f:
     cnt = json.load(f)
     services = parse_config(cnt)
 
-    log_lines_cache_service.load_lines(services.values())
-    log_lines_cache_service.observe_services(services.values())
-
 
 def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> tuple[bool, str | None]:
     """
@@ -56,6 +91,7 @@ def _authenticate(service_name: str, access_key: str, scope: AccessKeyScope) -> 
     if not service.allows(access_key, scope):
         return False, f"Key is not authorized to access scope {scope} of {service_name}"
     return True, None
+
 
 def format_commands(service: ComposeService) -> list[dict]:
     commands = service.commands
@@ -81,6 +117,7 @@ def format_commands(service: ComposeService) -> list[dict]:
         })
 
     return formatted_commands
+
 
 @app.get("/services")
 async def get_services(access_key: str = None):
@@ -163,6 +200,7 @@ class CommandRequest(BaseModel):
     command_id: str
     command: list[str]
 
+
 @app.post("/command/{service_name}")
 async def run_command(service_name: str, command_request: CommandRequest, access_key: str = None):
     """
@@ -197,6 +235,7 @@ async def run_command(service_name: str, command_request: CommandRequest, access
         service.add_system_log_line(f"{output}")
 
     return {"success": success, "output": output}
+
 
 @app.get("/logs/{service_name}")
 async def get_logs(service_name: str, access_key: str = None):
@@ -236,7 +275,6 @@ async def ws_logs(websocket: WebSocket, service_name: str, access_key: str = Non
             f"Access key {access_key} is not authorized to get logs of {service_name}", websocket)
         ws_connection_manager.disconnect(websocket)
         return
-
 
     def _send_line(line: ComposeLogLine):
         if not line:

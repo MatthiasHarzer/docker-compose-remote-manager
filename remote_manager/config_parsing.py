@@ -1,8 +1,9 @@
 import uuid
 
-from remote_manager.compose_service import AccessKey, AccessKeyScope, ComposeService, Command, CommandsOption
+from remote_manager.compose_service import AccessKey, AccessKeyScope, Command, CommandsOption, ComposeService
 
 command_id = 0
+
 
 def _resolve_access_key_or_var(access_key: str, available_access_keys: dict[str, str]) -> str:
     """
@@ -38,6 +39,7 @@ def parse_access_key(json: dict | str, available_keys: dict[str, str]) -> Access
     key = _resolve_access_key_or_var(json.get("key"), available_keys)
     return AccessKey(key, scopes)
 
+
 def parse_access_keys(keys: list[str] | str | None, available_keys: dict[str, str]) -> list[AccessKey]:
     if not keys:
         return []
@@ -47,6 +49,7 @@ def parse_access_keys(keys: list[str] | str | None, available_keys: dict[str, st
 
     return [parse_access_key(k, available_keys) for k in keys]
 
+
 def parse_command(json: dict) -> Command | None:
     sub_service = json.get("sub-service")
     command = json.get("command", "")
@@ -54,7 +57,6 @@ def parse_command(json: dict) -> Command | None:
 
     if not sub_service:
         return None
-
 
     if isinstance(command, str):
         command = [command]
@@ -80,6 +82,7 @@ def parse_commands(json: list | bool) -> CommandsOption:
 
     return commands
 
+
 def parse_service(name: str, json: dict, available_access_keys: dict[str, str] = None) -> ComposeService:
     available_access_keys = available_access_keys or {}
     cwd = json.get("cwd")
@@ -90,6 +93,7 @@ def parse_service(name: str, json: dict, available_access_keys: dict[str, str] =
     access_keys = parse_access_keys(json.get("access-key"), available_access_keys)
 
     return ComposeService(name, cwd, compose_file, access_keys, parsed_commands)
+
 
 def parse_config(json: dict) -> dict[str, ComposeService]:
     access_keys = json.get("access-keys", {})

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import uuid
@@ -11,6 +12,7 @@ from remote_manager.compose_parsing import ComposeLogLine, parse_compose_log_lin
 from remote_manager.compose_process_stdout_reader import ComposeProcessStdoutReader
 from remote_manager.observable import Observable
 
+log = logging.getLogger("app")
 LOG_LINE_LIMIT = os.environ.get("LOG_LINE_LIMIT", 2000)
 
 
@@ -31,6 +33,7 @@ class AccessKeyScope(StrEnum):
         """
         return [AccessKeyScope.MANAGE, AccessKeyScope.LOGS, AccessKeyScope.STATUS, AccessKeyScope.COMMANDS]
 
+
 @dataclass
 class AccessKey:
     """
@@ -46,6 +49,7 @@ class AccessKey:
         :return:
         """
         return scope in self.scopes or AccessKeyScope.MANAGE in self.scopes
+
 
 @dataclass
 class Command:
@@ -64,13 +68,14 @@ class Command:
         :param user_arg:
         :return: The completed command
         """
-        #? Maybe add template syntax in the future?
+        # ? Maybe add template syntax in the future?
         return self.command + user_arg
 
     @classmethod
     def default(cls, sub_service: str, command: list[str] | None = None) -> Command:
         command_name = "default" if not command else " ".join(command)
         return Command(str(uuid.uuid4()), sub_service, command or [], command_name)
+
 
 class ComposeCli:
     def __init__(self, service: ComposeService):
@@ -114,8 +119,12 @@ class ComposeCli:
         Get the sub services of the service.
         :return:
         """
-        services = subprocess.run(self._build_cmd("config", "--services"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().split(
-            "\n")
+        services = subprocess.run(
+            self._build_cmd(
+                "config",
+                "--services"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL).stdout.decode().split("\n")
         return [s.strip() for s in services if s]
 
     def get_logs(self, tail: int = 250) -> list[ComposeLogLine]:
@@ -123,8 +132,13 @@ class ComposeCli:
         Get the logs of the service.
         :return:
         """
-        lines = subprocess.run(self._build_cmd("logs", f"--tail={tail}", "-t"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().split(
-            "\n")
+        lines = subprocess.run(
+            self._build_cmd(
+                "logs",
+                f"--tail={tail}",
+                "-t"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL).stdout.decode().split("\n")
         return parse_compose_log_lines(lines)
 
     def get_log_process(self) -> subprocess.Popen:
@@ -132,8 +146,13 @@ class ComposeCli:
         Get the process that reads the logs.
         :return:
         """
-        return subprocess.Popen(self._build_cmd("logs", "-f", "--tail=0", "-t"), stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+        return subprocess.Popen(
+            self._build_cmd("logs", "-f", "--tail=0", "-t"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
 
     def execute_command(self, sub_service: str, *command: str) -> tuple[bool, str]:
         """
@@ -151,8 +170,15 @@ class ComposeCli:
 
 type CommandsOption = list[Command] | bool
 
+
 class ComposeService(Observable[ComposeLogLine]):
-    def __init__(self, name: str, cwd: str, compose_file: str, access_keys: list[AccessKey] | None, parsed_commands: CommandsOption):
+    def __init__(
+            self,
+            name: str,
+            cwd: str,
+            compose_file: str,
+            access_keys: list[AccessKey] | None,
+            parsed_commands: CommandsOption):
         self.name = name
         self.cwd = cwd
         self.compose_file = compose_file
@@ -185,7 +211,6 @@ class ComposeService(Observable[ComposeLogLine]):
 
         return parsed_commands
 
-
     def get_command(self, command_id: str) -> Command | None:
         for command in self.commands:
             if command.id == command_id:
@@ -197,20 +222,15 @@ class ComposeService(Observable[ComposeLogLine]):
         if self.std_out_reader:
             return
 
+        log.info(f"Registering stdout reader for service {self.name}")
         self.std_out_reader = ComposeProcessStdoutReader(self._cli.get_log_process())
         self.std_out_reader.on_read_line(self.add_log_line)
         self.std_out_reader.on_close(self._unregister_std_out_reader)
 
     def _unregister_std_out_reader(self) -> None:
         if self.std_out_reader:
+            log.info(f"Unregistering stdout reader for service {self.name}")
             self.std_out_reader = None
-
-    def set_log_lines(self, lines: list[ComposeLogLine]) -> None:
-        """
-        Set the log lines of the service.
-        :param lines:
-        """
-        self.logs = lines
 
     def allows(self, access_key: str, scope: AccessKeyScope | None = None) -> bool:
         """
@@ -317,4 +337,3 @@ class ComposeService(Observable[ComposeLogLine]):
         completed_command = command.get_completed_command(user_arg)
 
         return self._cli.execute_command(command.sub_service, *completed_command)
-

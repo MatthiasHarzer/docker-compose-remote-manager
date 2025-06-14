@@ -1,8 +1,11 @@
+import logging
 import subprocess
 from threading import Thread
 from typing import Callable
 
-from remote_manager.compose_parsing import parse_compose_log_line, ComposeLogLine
+from remote_manager.compose_parsing import ComposeLogLine, parse_compose_log_line
+
+log = logging.getLogger("app")
 
 OnReadLineCallback = Callable[[ComposeLogLine], None]
 OnCloseCallback = Callable[[], None]
@@ -69,11 +72,11 @@ class ComposeProcessStdoutReader:
             line = self.process.stdout.readline()
             if not line and self.process.poll() is not None:
                 break
-            decoded_line = line.decode("utf-8").strip()
-            parsed_line = parse_compose_log_line(decoded_line)
+            parsed_line = parse_compose_log_line(line)
 
             if not parsed_line:
                 continue
             self._notify_observers(parsed_line)
 
+        log.info(f"Process {self.process.pid} stdout is exhausted. Stopping reader.")
         self.stop()
