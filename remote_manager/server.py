@@ -52,7 +52,7 @@ LOGGING_CONFIG = {
 dictConfig(LOGGING_CONFIG)
 log = logging.getLogger("app")
 
-CONFIG_FILE = os.getcwd() + "/config_dev.json"
+CONFIG_FILE = os.getcwd() + "/config.json"
 
 app = FastAPI()
 ws_connection_manager = WsConnectionManager()
